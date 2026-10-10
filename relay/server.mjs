@@ -1,5 +1,5 @@
 // Laptop-side relay between the Vite frontend and the GPU worker on the AMD Jupyter instance.
-// Serves the frontend contract (see README "Suggested backend contract"); transport-jupyter.mjs moves jobs to
+// Serves the frontend contract (see docs/api.md); transport-jupyter.mjs moves jobs to
 // the instance and handles the gateway login. Node built-ins only; Node >= 22.18 so the shared
 // TypeScript preset/prompt files can be imported directly (type stripping).
 import { createServer } from 'node:http';

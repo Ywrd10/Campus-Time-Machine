@@ -1,6 +1,6 @@
 # Campus Time Machine — plan
 
-Status: **plan only.** Depends on the AMD worker/relay in `README.md` ("AMD backend integration plan") and on
+Status: **plan only.** Depends on the AMD worker/relay in [architecture.md](architecture.md) and on
 image→video, which has not been run on the instance yet.
 
 ## Pitch
