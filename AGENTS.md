@@ -102,6 +102,14 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   instance is gone. This destroyed the first two instances (both LTX). Watch `anon` in `/sys/fs/cgroup/memory.stat`.
   Workers exit themselves at limit − 5 GB, but a single big host allocation can jump that margin between 50 ms
   polls — the real protection is not offloading (Kandinsky Lite fits on the GPU).
+- **The gateway cookie comes from `https://radeon-global.anruicloud.com/api/notebook/open`**, which redirects to
+  `jupyter.anruicloud.com/instances/<id>/lab` and sets the cookie on the way. It needs the dashboard session cookie
+  `__Host-oneclick-manager` (~2 weeks; the current one expires 2026-10-24). Chain: 303 to `jupyter…/_auth/start#request=…` → the page's script POSTs that fragment value as a form to
+  `/_auth/start` → 200 sets `__Host-oneclick-jupyter-<instance>` and links to `/instances/<id>/lab`.
+  `relay/transport-jupyter.mjs` replays this itself
+  (`RADEON_SESSION` in `relay/.env.local`) whenever the gateway 403s, and learns the instance URL from it.
+- **Egress is allowlisted:** `example.com`, `api.ngrok.com`, `www.cloudflare.com` → `CONNECT tunnel failed, response 403`.
+  The worker can't pull jobs from a tunnel or a hosted relay; the Jupyter gateway is the only channel.
 - **The gateway's nginx 403s any write (PUT/DELETE) without a same-origin `Origin` header**, even with a valid cookie
   (GETs pass). The relay sends `Origin` on every upstream call.
 - **Large input images OOM the prompt enhancer** (found 2026-10-10 with `tests/test.jpg`, 2560×1707): Qwen2.5-VL with

@@ -146,9 +146,11 @@ Video Lite distilled). A text→video clip has gone through the full UI → Vite
 live instance. Instance facts and current numbers live in
 `AGENTS.md`.
 
-To run it: put the cookie in `relay/.env.local` (see `relay/.env.example`), then run `npm run relay` and
-`VITE_GENERATION_PROVIDER=http npm run dev` in two terminals. `GET /api/health` reports whether the worker's
-heartbeat is fresh.
+To run it: put the dashboard session cookie (`RADEON_SESSION`) in `relay/.env.local` (see
+`relay/.env.example`), then run `npm run relay` and `VITE_GENERATION_PROVIDER=http npm run dev` in two
+terminals. The relay follows "Open notebook" itself whenever the gateway rejects it, so the Jupyter cookie
+never has to be copied by hand. `GET /api/health` reports `instance` (`ok` / `login-expired` / `unreachable`)
+and whether the worker's heartbeat is fresh.
 
 ### The constraint
 
@@ -156,8 +158,9 @@ The model runs on an AMD Radeon Cloud JupyterLab instance (W7900D 48 GB, ROCm). 
 the JupyterLab web UI at `jupyter.anruicloud.com/instances/<id>/lab`, behind an nginx gate that needs a
 cookie set by the dashboard's "Open notebook" button. There is no SSH, there are no exposed ports, and
 `jupyter-server-proxy` is not installed. (Installing it would mean restarting the Jupyter server, which is the
-container's only entry point and could cost us the instance.) Outbound traffic goes through an egress proxy, so
-whether tunnels like cloudflared or ngrok work is **untested**.
+container's only entry point and could cost us the instance.) Outbound traffic goes through an allowlisting egress proxy:
+`example.com`, `api.ngrok.com` and `www.cloudflare.com` all fail with `CONNECT tunnel failed, response 403`
+(2026-10-10), so the worker can't call out to a tunnel or a hosted relay either.
 
 So the frontend can't call a port on the instance directly. The plan uses only channels we have already used
 successfully: the Jupyter **Contents API** (read/write files) and **`/files/`** (download), both over the
@@ -172,6 +175,7 @@ Browser (Vite :5173)
 Vite dev proxy  /api → http://127.0.0.1:8000
   ▼
 relay/ (laptop, Node, no deps)  ── HTTPS + gateway cookie + Jupyter XSRF ──►  jupyter.anruicloud.com
+  │  transport-jupyter.mjs: gets the cookie from radeon-global…/api/notebook/open with RADEON_SESSION
   │  PUT  /api/contents/jobs/<id>/…        (upload request + media)
   │  GET  /api/contents/jobs/<id>/status.json
   │  GET  /files/jobs/<id>/out.mp4         (stream back to browser)
