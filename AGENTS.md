@@ -34,7 +34,8 @@ Hackathon project generating video with synchronized audio (text→video and ima
   yet, so real journeys need an uploaded photo.
 - **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
   plays in the browser. Image→video through the relay works (2560×1707 photo, 52 s) with the resize fix deployed.
-  Time Machine Snapshot not yet run live.
+  Time Machine Snapshot verified live (2026-10-10 ~22:57 UTC): uploaded photo, `snow`, 52.6 s gen, peak 28.7 GB;
+  `finalFrameUrl`/shot thumbnail/wall thumbnail served and cached, `last.png` matches the MP4's last frame.
 
 ## The instance
 - Dashboard: https://radeon-global.anruicloud.com/ → "Open notebook" (sets the access cookie; direct
@@ -77,7 +78,9 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   `frames` and `enhance` are hand-written-job only.
 - Worker env: `STEPS`, `MAX_FRAMES`, `MAX_IMAGE_SIDE`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default eager).
 - `status.json`: `{status, progress, error?, output?}`; `output` has width/height/fps/durationSeconds/seed/prompt
-  (expanded), steps, generateSeconds, peakVramGB.
+  (expanded), steps, generateSeconds, peakVramGB, and `finalFrame: "last.png"` (the clip's last frame, saved next
+  to `out.mp4`). The relay turns that into `finalFrameUrl` (`/api/outputs/<id>/last.png`) on generation and
+  timeline status, the shot `thumbnail`, and wall entries, and caches it in `relay/cache/` with the MP4.
 - `k6_sweep_submit.py` queues the 8-job speed/quality grid used for `outputs/k6/`.
 
 ## Gotchas (all hit and verified)
@@ -153,7 +156,7 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 ## Next steps
 0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
    `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker runs
-   the repo's `worker_k6.py` (PID 7582 since ~20:57 UTC; the old PID 6067 is a harmless zombie).
+   the repo's `worker_k6.py` (PID 8518 since ~22:56 UTC, with `last.png`; PIDs 6067 and 7582 are harmless zombies).
 1. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
 2. **Time Machine:** campus photos in `public/places/` + `places.ts`; worker-side Film chaining (last frame → next

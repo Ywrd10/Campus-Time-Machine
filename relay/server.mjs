@@ -131,7 +131,7 @@ async function getTimeline(jobId) {
   const image = requestCache.get(jobId)?.image;
   return {
     ...job,
-    shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output }],
+    shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output, thumbnail: job.finalFrameUrl }],
     ...(image && { beforeImageUrl: `/api/outputs/${jobId}/${image}` }),
   };
 }
@@ -146,7 +146,7 @@ async function getWall() {
   if (wallCache && Date.now() - wallCache.at < 15_000) return wallCache.body;
   const entries = (await readWallIndex()).slice(0, 48);
   const jobs = await Promise.all(entries.map(entry => getGeneration(entry.id).catch(() => null)));
-  const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url }] : []);
+  const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url, ...(jobs[i].finalFrameUrl && { thumbnail: jobs[i].finalFrameUrl }) }] : []);
   wallCache = { at: Date.now(), body };
   return body;
 }
@@ -163,9 +163,14 @@ async function getGeneration(jobId) {
     body = { jobId, status: status.status, progress: status.progress };
     if (status.error) body.error = status.error;
     if (status.status === 'completed' && status.output) {
-      const { seed, prompt, ...output } = status.output;
+      const { seed, prompt, finalFrame, ...output } = status.output;
       body.output = { ...output, url: `/api/outputs/${jobId}.mp4`, filename: `knight-studio-${jobId.slice(0, 8)}.mp4` };
-      cacheOutput(jobId);
+      cacheOutput(jobId, 'out.mp4');
+      // The clip's last frame (last.png); jobs from before the worker wrote it have none.
+      if (finalFrame === 'last.png') {
+        body.finalFrameUrl = `/api/outputs/${jobId}/last.png`;
+        cacheOutput(jobId, 'last.png');
+      }
     }
   } else {
     if (!(await instance.jobExists(jobId))) throw new HttpError(404, 'Unknown job. It may have expired; generate again.');
@@ -183,26 +188,28 @@ async function getGeneration(jobId) {
   return body;
 }
 
-const cachedPath = jobId => new URL(`${jobId}.mp4`, CACHE_DIR);
+const CACHED_FILES = ['out.mp4', 'last.png'];
+const cachedPath = (jobId, file) => new URL(file === 'out.mp4' ? `${jobId}.mp4` : `${jobId}-${file}`, CACHE_DIR);
 const caching = new Set();
 
-// Copies a finished clip to relay/cache/ in the background; until it lands, outputs stream from the instance.
-function cacheOutput(jobId) {
-  if (caching.has(jobId) || existsSync(cachedPath(jobId))) return;
-  caching.add(jobId);
+// Copies a finished clip's files to relay/cache/ in the background; until they land, they stream from the instance.
+function cacheOutput(jobId, file) {
+  const path = cachedPath(jobId, file);
+  if (caching.has(path.href) || existsSync(path)) return;
+  caching.add(path.href);
   (async () => {
-    const response = await instance.openFile(jobId, 'out.mp4');
+    const response = await instance.openFile(jobId, file);
     await mkdir(CACHE_DIR, { recursive: true });
-    const tmp = new URL(`${jobId}.mp4.tmp`, CACHE_DIR);
+    const tmp = new URL(`${path.href}.tmp`);
     await writeFile(tmp, Readable.fromWeb(response.body));
-    await rename(tmp, cachedPath(jobId));
-  })().catch(error => console.error('[relay] caching', jobId, error.message)).finally(() => caching.delete(jobId));
+    await rename(tmp, path);
+  })().catch(error => console.error('[relay] caching', jobId, file, error.message)).finally(() => caching.delete(path.href));
 }
 
-// Serves a cached clip with Range support (browsers seek <video> with Range requests).
-async function sendCached(req, res, path) {
+// Serves a cached file with Range support (browsers seek <video> with Range requests).
+async function sendCached(req, res, path, contentType) {
   const { size } = await stat(path);
-  const headers = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
+  const headers = { 'Content-Type': contentType, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
   const match = req.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
   let start = 0, end = size - 1, status = 200;
   if (match && (match[1] || match[2])) {
@@ -223,7 +230,8 @@ async function sendCached(req, res, path) {
 const CONTENT_TYPES = { mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
 async function streamOutput(req, res, jobId, file) {
-  if (file === 'out.mp4' && existsSync(cachedPath(jobId))) return sendCached(req, res, cachedPath(jobId));
+  if (CACHED_FILES.includes(file) && existsSync(cachedPath(jobId, file)))
+    return sendCached(req, res, cachedPath(jobId, file), CONTENT_TYPES[file.split('.').pop()]);
   const response = await instance.openFile(jobId, file, req.headers.range);
   const headers = { 'Content-Type': CONTENT_TYPES[file.split('.').pop()], 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
   for (const name of ['content-length', 'content-range']) {
@@ -264,8 +272,8 @@ createServer(async (req, res) => {
     } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\.mp4$/))) {
       if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
       await streamOutput(req, res, match[1], 'out.mp4');
-    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\/(image\.(?:png|jpe?g|webp))$/))) {
-      // The uploaded source photo, for the Time Machine before/after view.
+    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\/(image\.(?:png|jpe?g|webp)|last\.png)$/))) {
+      // The uploaded source photo and the clip's last frame, for the Time Machine before/after view.
       if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
       await streamOutput(req, res, match[1], match[2]);
     } else if (req.method === 'POST' && pathname === '/api/timelines') {
