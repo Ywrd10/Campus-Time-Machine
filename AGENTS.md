@@ -33,7 +33,7 @@ Hackathon project generating video with synchronized audio (text→video and ima
   Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Preset places have no photos
   yet, so real journeys need an uploaded photo.
 - **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
-  plays in the browser. Image→video through the relay works (1024 px photo, 52 s); a full-size photo OOMs until the resize fix is deployed.
+  plays in the browser. Image→video through the relay works (2560×1707 photo, 52 s) with the resize fix deployed.
   Time Machine Snapshot not yet run live.
 
 ## The instance
@@ -106,7 +106,8 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   (GETs pass). The relay sends `Origin` on every upstream call.
 - **Large input images OOM the prompt enhancer** (found 2026-10-10 with `tests/test.jpg`, 2560×1707): Qwen2.5-VL with
   eager attention asked for 15.8 GB at the vision encoder; the same photo at 1024×683 ran fine (52 s). The repo's
-  `worker_k6.py` now shrinks images to `MAX_IMAGE_SIDE` (1024) before use; **not yet deployed to the instance**.
+  `worker_k6.py` shrinks images to `MAX_IMAGE_SIDE` (1024) before use. Deployed ~20:57 UTC; the full-size photo then ran
+  in 52 s (peak 28.7 GB).
 - **A VRAM OOM is harmless** (Python exception; the worker marks the job failed and continues).
 - **Egress proxy:** `github.com` blocked (use `codeload.github.com/.../tar.gz/...` for pip), pip uses a mirror,
   `huggingface.co` returns proxy 503 → use `HF_ENDPOINT=https://hf-mirror.com`. The mirror throws read timeouts on
@@ -115,6 +116,8 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
 - `transformers from_pretrained(..., device_map="cuda")` stages the whole model in host RAM (+24 GB for Gemma).
   Kandinsky's pipeline `from_pretrained` + `.to("cuda")` stays at ~2.4 GB anon (mmap), so no custom loader needed.
 - Background `&`/nohup from `!` cells is unreliable; use `subprocess.Popen(..., start_new_session=True)` + a log file.
+- A worker killed from a later kernel stays a zombie (`State: Z`) because its parent was the kernel that launched it.
+  It holds no memory; don't wait on `/proc/<pid>` existing, check `State`.
 - `pkill -f <pattern>`/`pgrep -f <pattern>` run through a shell match that shell's own command line (pgrep then
   reports a phantom process; pkill kills the shell). Use the PID from `jobs/worker.heartbeat`, or `pkill` without a shell.
 
@@ -141,8 +144,8 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 
 ## Next steps
 0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
-   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. Deploy the repo's
-   `worker_k6.py` (image resize fix) and restart the worker.
+   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker runs
+   the repo's `worker_k6.py` (PID 7582 since ~20:57 UTC; the old PID 6067 is a harmless zombie).
 1. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
 2. **Time Machine:** campus photos in `public/places/` + `places.ts`; worker-side Film chaining (last frame → next
