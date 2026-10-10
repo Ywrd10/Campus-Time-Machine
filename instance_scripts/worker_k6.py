@@ -118,7 +118,7 @@ def run(job_dir, req, status):
     w, h = SIZES["9:16" if int(req.get("height", 0)) > int(req.get("width", 0)) else "16:9"]
     frames = frames_for(fps, float(req.get("durationSeconds") or 5))
     seed = int(req.get("seed", random.randrange(2**31)))
-    # Benchmark overrides, set only by hand-written jobs (the relay doesn't forward these fields).
+    # Exact size/steps. The relay sets these from the frontend's tested presets; hand-written jobs can too.
     bench = req.get("bench") or {}
     if "size" in bench:
         w, h = (int(x) // 16 * 16 for x in bench["size"])

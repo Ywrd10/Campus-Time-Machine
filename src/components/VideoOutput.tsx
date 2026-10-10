@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowDownToLine, CircleCheck, Film, LoaderCircle, RotateCcw, TriangleAlert } from 'lucide-react';
+import { STEPS } from '../lib/capabilities';
 import type { GenerationRequest, JobStatusResponse } from '../lib/types';
 import { downloadOutput, isMockProvider } from '../services/generation';
 
@@ -87,7 +88,7 @@ export function VideoOutput({ status, job, request, error, onReset, onRetry }: P
         <div><dt>Resolution</dt><dd>{output.width} × {output.height}</dd></div>
         <div><dt>Duration</dt><dd>{output.durationSeconds}s</dd></div>
         <div><dt>Frame rate</dt><dd>{output.fps} FPS</dd></div>
-        {request && <div><dt>Requested model</dt><dd>LTX-2.5 {request.settings.model.endsWith('fast') ? 'Fast' : 'Pro'}</dd></div>}
+        {request && <div><dt>Requested model</dt><dd>Kandinsky 6 Lite · {STEPS[request.settings.model]} steps</dd></div>}
       </dl>
       {output.isMock && <p className="demo-result"><CircleCheck size={15} aria-hidden="true" /><span>Sample output · {output.durationSeconds}-second demo clip. It does not reflect your input or settings.</span></p>}
       {request?.prompt && <details className="output-prompt"><summary>Generation prompt</summary><p>{request.prompt}</p></details>}

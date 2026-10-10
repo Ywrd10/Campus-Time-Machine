@@ -1,10 +1,15 @@
 // Laptop-side relay between the Vite frontend and the GPU worker on the AMD Jupyter instance.
 // Serves the frontend contract (see README "Suggested backend contract") and moves jobs through
-// /workspace/jobs/<id>/ via the Jupyter Contents API. Node built-ins only.
+// /workspace/jobs/<id>/ via the Jupyter Contents API. Node built-ins only; Node >= 22.18 so the shared
+// TypeScript preset/prompt files can be imported directly (type stripping).
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
+import { MOMENTS, buildShots } from '../src/timeMachine/moments.ts';
+import { PLACES } from '../src/timeMachine/places.ts';
 
 const envFile = new URL('./.env.local', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -14,10 +19,16 @@ const UPSTREAM = (process.env.JUPYTER_URL || '').replace(/\/+(lab.*)?$/, '');
 const COOKIE = process.env.JUPYTER_COOKIE || '';
 const XSRF = process.env.JUPYTER_XSRF || '';
 const HEARTBEAT_STALE_S = 60;
-const MODES = ['text', 'image', 'audio'];
+const MODES = ['text', 'image'];
 const LIMITS = { image: 15, finalFrame: 15, audio: 32 }; // MB, same as the frontend
 const EXTENSIONS = { image: /\.(png|jpe?g|webp)$/i, finalFrame: /\.(png|jpe?g|webp)$/i, audio: /\.(mp3|wav|m4a|ogg)$/i };
 const JOB_ID = /^[0-9a-f-]{36}$/;
+// Every size the frontend offers, both orientations, e.g. "640x352".
+const SIZES = RESOLUTIONS.flatMap(resolution => ['16:9', '9:16'].map(aspectRatio => dimensions({ resolution, aspectRatio })));
+// Time Machine snapshot: the fastest tested preset that keeps full-volume audio (~50 s plus prompt expansion).
+const SNAPSHOT = { model: 'k6-lite-quality', width: 640, height: 352, fps: 24, durationSeconds: 3 };
+const PUBLIC_DIR = new URL('../public/', import.meta.url);
+const WALL_FILE = new URL('./wall.json', import.meta.url); // local index of timeline jobs, newest first
 const AUTH_HINT = 'Jupyter rejected the relay. Re-open the notebook from the Radeon dashboard and refresh JUPYTER_COOKIE in relay/.env.local.';
 
 if (!UPSTREAM || !COOKIE) {
@@ -80,30 +91,47 @@ function parseRequestField(raw) {
   if (!MODES.includes(mode)) throw new HttpError(400, 'Unknown generation mode.');
   if (typeof prompt !== 'string' || prompt.length > 5000) throw new HttpError(400, 'Keep your prompt under 5,000 characters.');
   if (mode !== 'image' && !prompt.trim()) throw new HttpError(400, 'Describe the scene you want to create.');
-  for (const [key, value] of Object.entries({ width, height, fps, durationSeconds }))
-    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new HttpError(400, `Invalid ${key}.`);
-  return { mode, prompt: prompt.trim(), model: String(model || ''), width, height, fps, durationSeconds };
+  return { mode, prompt: prompt.trim(), ...withPreset({ model, width, height, fps, durationSeconds }) };
 }
 
-async function createGeneration(req) {
-  let form;
+// Accept only the presets rendered on the instance (src/lib/capabilities.ts) and pass the exact size and step
+// count to the worker as `bench`; on its own the worker would pick 864x480 at 10 steps for every request.
+function withPreset({ model, width, height, fps, durationSeconds }) {
+  const size = SIZES.find(([w, h]) => w === width && h === height);
+  if (!Object.hasOwn(STEPS, model) || !size || fps !== 24 || !DURATIONS.includes(durationSeconds))
+    throw new HttpError(400, `Choose a tested preset: ${SIZES.map(s => s.join('×')).join(', ')} at 24 FPS, ${DURATIONS.join('/')} seconds.`);
+  return { model, width, height, fps, durationSeconds, bench: { size, steps: STEPS[model] } };
+}
+
+async function readForm(req) {
   try {
-    form = await new Request('http://relay/', { method: 'POST', headers: req.headers, body: Readable.toWeb(req), duplex: 'half' }).formData();
+    return await new Request('http://relay/', { method: 'POST', headers: req.headers, body: Readable.toWeb(req), duplex: 'half' }).formData();
   } catch {
     throw new HttpError(400, 'Expected a multipart form body.');
   }
+}
+
+function formFile(form, field) {
+  const file = form.get(field);
+  if (!(file instanceof File) || file.size === 0) return null;
+  if (!EXTENSIONS[field].test(file.name)) throw new HttpError(400, `Unsupported ${field} file type.`);
+  if (file.size > LIMITS[field] * 1024 * 1024) throw new HttpError(400, `The ${field} file must be smaller than ${LIMITS[field]} MB.`);
+  return file;
+}
+
+async function createGeneration(req) {
+  const form = await readForm(req);
   const request = parseRequestField(form.get('request'));
   const files = {};
   for (const field of ['image', 'finalFrame', 'audio']) {
-    const file = form.get(field);
-    if (!(file instanceof File) || file.size === 0) continue;
-    if (!EXTENSIONS[field].test(file.name)) throw new HttpError(400, `Unsupported ${field} file type.`);
-    if (file.size > LIMITS[field] * 1024 * 1024) throw new HttpError(400, `The ${field} file must be smaller than ${LIMITS[field]} MB.`);
-    files[field] = file;
+    const file = formFile(form, field);
+    if (file) files[field] = file;
   }
   if (request.mode === 'image' && !files.image) throw new HttpError(400, 'Upload a source image first.');
-  if (request.mode === 'audio' && !files.audio) throw new HttpError(400, 'Upload an audio file first.');
+  return queueJob(request, files);
+}
 
+async function queueJob(request, files) {
   const jobId = randomUUID();
   const createdAt = new Date().toISOString();
   const dir = `jobs/${jobId}`;
@@ -120,11 +148,66 @@ async function createGeneration(req) {
   return { jobId, createdAt };
 }
 
+// Time Machine Snapshot: one image->video shot of the place at the chosen moment. Film (three chained shots)
+// needs the worker to start each shot from the previous one's last frame, which it doesn't do yet.
+async function createTimeline(req) {
+  const form = await readForm(req);
+  const moment = MOMENTS.find(moment => moment.id === form.get('moment'));
+  if (!moment) throw new HttpError(400, 'Choose a destination moment.');
+  const length = form.get('length');
+  if (length === 'film') throw new HttpError(400, 'Film journeys aren’t supported by the GPU worker yet. Choose Snapshot.');
+  if (length !== 'snapshot') throw new HttpError(400, 'Choose Snapshot or Film.');
+  let image = formFile(form, 'image');
+  let place;
+  if (!image) {
+    place = PLACES.find(place => place.id === form.get('place'));
+    if (!place) throw new HttpError(400, 'Choose a campus place or upload a photo.');
+    if (!place.photo) throw new HttpError(400, `There’s no photo of ${place.name} yet. Upload one, or add it under public/places.`);
+    image = new File([await readFile(new URL(`.${place.photo}`, PUBLIC_DIR))], place.photo.split('/').pop());
+  }
+  const [{ prompt }] = buildShots(moment, place?.description || 'campus', 'snapshot');
+  const placeName = place?.name || 'Your campus photo';
+  const timeline = { place: placeName, moment: moment.id, length };
+  const { jobId } = await queueJob({ mode: 'image', prompt, ...withPreset(SNAPSHOT), timeline }, { image });
+  const wall = await readWallIndex();
+  await writeFile(WALL_FILE, JSON.stringify([{ id: jobId, place: placeName, moment: moment.id }, ...wall].slice(0, 200)));
+  return { jobId };
+}
+
+const requestCache = new Map(); // jobId -> request.json (immutable once written)
+
+async function getTimeline(jobId) {
+  const job = await getGeneration(jobId);
+  if (!requestCache.has(jobId)) requestCache.set(jobId, await readJson(`jobs/${jobId}/request.json`));
+  const image = requestCache.get(jobId)?.image;
+  return {
+    ...job,
+    shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output }],
+    ...(image && { beforeImageUrl: `/api/outputs/${jobId}/${image}` }),
+  };
+}
+
+async function readWallIndex() {
+  try { return JSON.parse(await readFile(WALL_FILE, 'utf8')); } catch { return []; }
+}
+
+let wallCache;
+
+async function getWall() {
+  if (wallCache && Date.now() - wallCache.at < 15_000) return wallCache.body;
+  const entries = (await readWallIndex()).slice(0, 48);
+  const jobs = await Promise.all(entries.map(entry => getGeneration(entry.id).catch(() => null)));
+  const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url }] : []);
+  wallCache = { at: Date.now(), body };
+  return body;
+}
+
 const statusCache = new Map(); // jobId -> { at, body }
 
 async function getGeneration(jobId) {
   const cached = statusCache.get(jobId);
-  if (cached && Date.now() - cached.at < 2000) return cached.body;
+  // Finished jobs never change; others are re-read at most every 2 s.
+  if (cached && (['completed', 'failed'].includes(cached.body.status) || Date.now() - cached.at < 2000)) return cached.body;
   const status = await readJson(`jobs/${jobId}/status.json`);
   let body;
   if (status) {
@@ -138,7 +221,7 @@ async function getGeneration(jobId) {
     if (!(await exists(`jobs/${jobId}/request.json`))) throw new HttpError(404, 'Unknown job. It may have expired; generate again.');
     const age = await workerHeartbeatAge();
     if (age > HEARTBEAT_STALE_S) {
-      body = { jobId, status: 'failed', error: 'The GPU worker is offline. Start worker.py on the instance, then generate again.' };
+      body = { jobId, status: 'failed', error: 'The GPU worker is offline. Start worker_k6.py on the instance, then generate again.' };
       // Persist it so a worker that comes back later doesn't spend GPU time on a job nobody is watching.
       await putContents(`jobs/${jobId}/status.json`, { type: 'file', format: 'text', content: JSON.stringify(body) });
     } else {
@@ -150,12 +233,14 @@ async function getGeneration(jobId) {
   return body;
 }
 
-async function streamOutput(req, res, jobId) {
+const CONTENT_TYPES = { mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+
+async function streamOutput(req, res, jobId, file) {
   const range = req.headers.range;
-  const response = await upstream(`/files/jobs/${jobId}/out.mp4`, { headers: range ? { Range: range } : {} });
+  const response = await upstream(`/files/jobs/${jobId}/${file}`, { headers: range ? { Range: range } : {} });
   if (response.status === 404) throw new HttpError(404, 'Output not found.');
-  if (!response.ok) throw new HttpError(502, `Fetching the video failed (${response.status}).`);
-  const headers = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
+  if (!response.ok) throw new HttpError(502, `Fetching ${file} failed (${response.status}).`);
+  const headers = { 'Content-Type': CONTENT_TYPES[file.split('.').pop()], 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
   for (const name of ['content-length', 'content-range']) {
     const value = response.headers.get(name);
     if (value) headers[name] = value;
@@ -180,7 +265,18 @@ createServer(async (req, res) => {
       sendJson(res, 200, await getGeneration(match[1]));
     } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\.mp4$/))) {
       if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
-      await streamOutput(req, res, match[1]);
+      await streamOutput(req, res, match[1], 'out.mp4');
+    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\/(image\.(?:png|jpe?g|webp))$/))) {
+      // The uploaded source photo, for the Time Machine before/after view.
+      if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
+      await streamOutput(req, res, match[1], match[2]);
+    } else if (req.method === 'POST' && pathname === '/api/timelines') {
+      sendJson(res, 202, await createTimeline(req));
+    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/timelines\/([^/]+)$/))) {
+      if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Unknown journey.');
+      sendJson(res, 200, await getTimeline(match[1]));
+    } else if (req.method === 'GET' && pathname === '/api/wall') {
+      sendJson(res, 200, await getWall());
     } else if (req.method === 'GET' && pathname === '/api/health') {
       const age = await workerHeartbeatAge();
       sendJson(res, 200, { relay: 'ok', worker: age <= HEARTBEAT_STALE_S ? 'online' : 'offline', heartbeatAgeSeconds: Number.isFinite(age) ? Math.round(age) : null });

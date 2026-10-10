@@ -1,8 +1,8 @@
 export type GenerationMode = 'text' | 'image' | 'audio';
-export type Model = 'ltx-2-5-fast' | 'ltx-2-5-pro';
-export type Resolution = '720p' | '1080p' | '1440p' | '4K';
+export type Model = 'k6-lite-fast' | 'k6-lite-quality';
+export type Resolution = '352p' | '480p';
 export type AspectRatio = '16:9' | '9:16';
-export type Fps = 24 | 25 | 48 | 50;
+export type Fps = 24;
 export interface GenerationSettings {
   model: Model;
   resolution: Resolution;

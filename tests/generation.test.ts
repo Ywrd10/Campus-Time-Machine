@@ -1,38 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { allowedDurations, DEFAULT_SETTINGS, dimensions, FPS_OPTIONS, maximumAudioDuration, normalizeSettings, RESOLUTIONS, validateRequest } from '../src/lib/capabilities';
+import { allowedDurations, DEFAULT_SETTINGS, dimensions, estimatedSeconds, normalizeSettings, RESOLUTIONS, STEPS, validateRequest } from '../src/lib/capabilities';
 import { HttpGenerationService, MockGenerationService } from '../src/services/generation';
-import type { GenerationRequest, Model } from '../src/lib/types';
+import type { GenerationRequest } from '../src/lib/types';
 
 const request: GenerationRequest = { mode: 'text', prompt: 'A cinematic mountain scene', settings: DEFAULT_SETTINGS };
-describe('Documented LTX-2.5 combinations', () => {
-  it('defaults to Fast, landscape 720p, 24 FPS, and 6 seconds', () => {
-    expect(dimensions(DEFAULT_SETTINGS)).toEqual([1280, 720]);
+describe('Tested Kandinsky 6 Lite presets', () => {
+  it('defaults to Quality, landscape 640x352, 24 FPS, and 3 seconds', () => {
+    expect(dimensions(DEFAULT_SETTINGS)).toEqual([640, 352]);
     expect(DEFAULT_SETTINGS.fps).toBe(24);
-    expect(DEFAULT_SETTINGS.duration).toBe(6);
-    expect(DEFAULT_SETTINGS.model).toBe('ltx-2-5-fast');
+    expect(DEFAULT_SETTINGS.duration).toBe(3);
+    expect(STEPS[DEFAULT_SETTINGS.model]).toBe(10);
+    expect(estimatedSeconds(DEFAULT_SETTINGS)).toBe(49);
   });
-  it('matches every model/resolution/FPS row and clamps unsupported duration', () => {
-    for (const model of ['ltx-2-5-fast', 'ltx-2-5-pro'] as Model[]) {
-      for (const resolution of RESOLUTIONS) for (const fps of FPS_OPTIONS) {
-        const settings = { ...DEFAULT_SETTINGS, model, resolution, fps, duration: 20 };
-        const extended = model === 'ltx-2-5-fast' && ['720p', '1080p'].includes(resolution) && [24, 25].includes(fps);
-        expect(allowedDurations(settings)).toEqual(extended ? [6, 8, 10, 12, 14, 16, 18, 20] : [6, 8, 10]);
-        expect(normalizeSettings(settings).duration).toBe(extended ? 20 : 6);
-      }
+  it('offers 2, 3, and 5 seconds and clamps anything else to the default', () => {
+    for (const resolution of RESOLUTIONS) {
+      const settings = { ...DEFAULT_SETTINGS, resolution, duration: 6 };
+      expect(allowedDurations(settings)).toEqual([2, 3, 5]);
+      expect(normalizeSettings(settings).duration).toBe(3);
     }
   });
   it('reverses portrait dimensions and validates prompts/settings before submitting', () => {
-    expect(dimensions({ ...DEFAULT_SETTINGS, aspectRatio: '9:16', resolution: '4K' })).toEqual([2160, 3840]);
+    expect(dimensions({ ...DEFAULT_SETTINGS, aspectRatio: '9:16', resolution: '480p' })).toEqual([480, 864]);
     expect(validateRequest({ ...request, prompt: '   ' })).toContain('Describe');
-    expect(validateRequest({ ...request, settings: { ...DEFAULT_SETTINGS, model: 'ltx-2-5-pro', duration: 20 } })).toContain('duration');
+    expect(validateRequest({ ...request, settings: { ...DEFAULT_SETTINGS, duration: 10 } })).toContain('duration');
   });
-  it('derives audio length from the input and applies its separate limits', () => {
+  it('rejects inputs the model cannot use', () => {
+    const image = new File([new Uint8Array(12)], 'frame.png', { type: 'image/png' });
     const audio = new File([new Uint8Array(12)], 'sound.mp3', { type: 'audio/mpeg' });
-    const audioRequest: GenerationRequest = { ...request, mode: 'audio', audio, audioDuration: 12.5 };
-    expect(validateRequest(audioRequest)).toBeNull();
-    expect(maximumAudioDuration(DEFAULT_SETTINGS)).toBe(20);
-    expect(validateRequest({ ...audioRequest, settings: { ...DEFAULT_SETTINGS, model: 'ltx-2-5-pro' } })).toContain('10 seconds');
-    expect(validateRequest({ ...audioRequest, audioDuration: 0 })).toContain('preview');
+    expect(validateRequest({ ...request, mode: 'image', image })).toBeNull();
+    expect(validateRequest({ ...request, mode: 'image', image, finalFrame: image })).toContain('Final-frame');
+    expect(validateRequest({ ...request, mode: 'audio', audio, audioDuration: 3 })).toContain('Audio-to-video');
   });
 });
 describe('Async generation adapters', () => {

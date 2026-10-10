@@ -25,10 +25,14 @@ Hackathon project generating video with synchronized audio (text→video and ima
 
   Frame count dominates (attention is quadratic in tokens); steps matter less. 4–6 steps look close to 10 but the
   audio gets quieter (−31 → −41 dB). Live-demo candidate: 640×352, 2–3 s, 6–10 steps (≈35–50 s).
-- **Frontend not yet adapted:** `src/lib/capabilities.ts` still offers the LTX catalog (720p–4K, 6–20 s, 24–50 fps).
-  The worker maps any request to Kandinsky's limits (see "Generating a clip") and reports the real output metadata.
-- `relay/server.mjs` and the Vite proxy exist (built earlier for `worker.py`); the relay → `worker_k6.py` path
-  through the UI has **not** been exercised yet.
+- **Frontend connected (branch `amd-backend-relay`, main merged in):** `src/lib/capabilities.ts` offers only the
+  tested presets: 640×352 / 864×480 (either orientation), 24 fps, 2/3/5 s, Fast = 6 steps / Quality = 10 steps.
+  The relay imports that file (Node ≥ 22.18 type stripping) and forwards `bench: {size, steps}` to the worker.
+- Teammate's **Campus Time Machine** view (`src/timeMachine/`) is served by the relay: `/api/timelines` (Snapshot
+  only: one i2v shot, 640×352, 3 s, 10 steps, prompt from `moments.ts`), `/api/wall` (index in `relay/wall.json`).
+  Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Preset places have no photos
+  yet, so real journeys need an uploaded photo.
+- The UI → relay path was tested against a local fake Jupyter server only; **not yet against the live instance.**
 
 ## The instance
 - Dashboard: https://radeon-global.anruicloud.com/ → "Open notebook" (sets the access cookie; direct
@@ -67,7 +71,8 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
 - Without `bench`, the worker picks 864×480 (or 480×864 if height > width), frames = 4k+1 ≥ fps × duration capped
   at 121 (5 s), fps 23–25 honored else 24, 10 steps, Qwen prompt expansion on. `finalFrame` and `mode: "audio"`
   return a readable failure.
-- `bench` (hand-written jobs only; the relay doesn't forward it): `size` (multiples of 16), `frames`, `steps`, `enhance`.
+- `bench`: `size` (multiples of 16), `frames`, `steps`, `enhance`. The relay sets `size` and `steps` from the UI preset;
+  `frames` and `enhance` are hand-written-job only.
 - Worker env: `STEPS`, `MAX_FRAMES`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default eager).
 - `status.json`: `{status, progress, error?, output?}`; `output` has width/height/fps/durationSeconds/seed/prompt
   (expanded), steps, generateSeconds, peakVramGB.
@@ -124,14 +129,17 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 - Costs: 77 GB download (~35 min; `redownload.py` skips `transformer_full`), peak RAM ~51/59 GB in `smoke.py`.
 - `worker.py` host RAM grew on every t2v↔i2v switch (re-running `enable_model_cpu_offload()` over shared modules):
   20 → 36.8 → 45 GB, then the instance died mid-job (~19:15 UTC). Unfixed; don't revive `worker.py` without fixing it.
-- LTX-specific helpers kept in `instance_scripts/`: `smoke.py`, `redownload.py`, `gemma_loader.py` (loads Gemma
+- LTX-specific helpers (no longer in `instance_scripts/`): `smoke.py`, `redownload.py`, `gemma_loader.py` (loads Gemma
   straight to GPU, +0.4 GB RAM), `worker.py`.
 
 ## Next steps
+0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
+   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker on the instance
+   doesn't need redeploying (only a comment changed in `worker_k6.py`).
 1. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
-2. **Frontend:** narrow `src/lib/capabilities.ts` (and the `Model` type) to Kandinsky: 16:9/9:16, 24 fps, ≤5 s,
-   SD sizes; then run text→video and image→video end to end through `relay/server.mjs`.
+2. **Time Machine:** campus photos in `public/places/` + `places.ts`; worker-side Film chaining (last frame → next
+   shot, stitch with PyAV) and a `finalFrameUrl` for the before/after slider.
 3. Decide the project angle — the model's odd physics (balls floating off tables, duplicating) could anchor a
    "what does the world model get wrong?" demo.
 4. Optional: Kandinsky 6 VSR (super-resolution) needs flex attention + `torch.compile` — untested on ROCm.
