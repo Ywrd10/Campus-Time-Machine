@@ -30,11 +30,12 @@ export function FileInput({ kind, label, file, onChange, onDuration, compact }: 
       onDragLeave={() => setDragging(false)}
       onDrop={event => { event.preventDefault(); setDragging(false); if (!event.currentTarget.closest('fieldset')?.disabled) select(event.dataTransfer.files[0]); }}>
       <input id={id} type="file" className="sr-only"
+        aria-label={label} aria-describedby={`${id}-formats`} aria-invalid={Boolean(error)}
         accept={kind === 'image' ? '.png,.jpg,.jpeg,.webp' : '.mp3,.wav,.m4a,.ogg'}
         onChange={event => { select(event.target.files?.[0]); event.target.value = ''; }} />
-      <Icon size={23} />
+      <Icon size={21} aria-hidden="true" />
       <strong>Drop {kind === 'image' ? 'an image' : 'an audio clip'} or <span>browse</span></strong>
-      <small>{kind === 'image' ? 'PNG, JPG, WebP · up to 15 MB' : 'MP3, WAV, M4A, OGG · up to 32 MB'}</small>
+      <small id={`${id}-formats`}>{kind === 'image' ? 'PNG, JPG, WebP · up to 15 MB' : 'MP3, WAV, M4A, OGG · up to 32 MB'}</small>
     </label> : <div className="file-preview">
       {kind === 'image' && url && <img src={url} alt={label} onError={() => { setError('This image could not be opened. Choose another file.'); onChange(undefined); }} />}
       <div className="file-name"><Upload size={14} /><span title={file.name}>{file.name}</span><button type="button" className="icon-button" aria-label={`Remove ${label.toLowerCase()}`} onClick={() => { onChange(undefined); onDuration?.(0); setError(undefined); }}><X size={15} /></button></div>

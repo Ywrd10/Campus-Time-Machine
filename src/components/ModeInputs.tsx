@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react';
 import type { GenerationMode } from '../lib/types';
 import { FileInput } from './FileInput';
 
@@ -21,30 +20,29 @@ interface Props {
 }
 function PromptInput({ label, optional, prompt, onPrompt }: { label: string; optional?: boolean; prompt: string; onPrompt: (value: string) => void }) {
   return <div className="prompt-field">
-    <div className="field-heading"><label htmlFor="prompt" className="field-label">{label}</label><span>{optional ? 'Optional' : 'Be descriptive'}</span></div>
+    <div className="field-heading"><label htmlFor="prompt" className="field-label">{label}</label>{optional && <span>Optional</span>}</div>
     <textarea id="prompt" value={prompt} onChange={event => onPrompt(event.target.value)} maxLength={5000}
-      placeholder="Describe your subject, setting, camera movement, and mood…" rows={6} />
-    <div className="prompt-footer"><span><Sparkles size={13} /> A little detail goes a long way</span><span>{prompt.length.toLocaleString()} / 5,000</span></div>
+      placeholder="Describe the scene, camera movement, and action…" rows={4} aria-describedby="prompt-count" />
+    <div className="prompt-footer"><span id="prompt-count">{prompt.length.toLocaleString()} / 5,000 characters</span></div>
   </div>;
 }
 export function TextInputs({ prompt, onPrompt }: Pick<Props, 'prompt' | 'onPrompt'>) {
   return <>
-    <PromptInput label="Your prompt" prompt={prompt} onPrompt={onPrompt} />
-    <div className="examples"><span>Try an idea</span><div>{EXAMPLES.map(example => <button type="button" key={example.name} onClick={() => onPrompt(example.prompt)}>{example.name}</button>)}</div></div>
+    <PromptInput label="Text prompt" prompt={prompt} onPrompt={onPrompt} />
+    <details className="prompt-examples"><summary>Use an example prompt</summary><div>{EXAMPLES.map(example => <button type="button" key={example.name} onClick={() => onPrompt(example.prompt)}>{example.name}</button>)}</div></details>
   </>;
 }
 export function ImageInputs(props: Props) {
   return <>
     <FileInput kind="image" label="First frame" file={props.image} onChange={props.onImage} />
-    <PromptInput label="Motion instructions" optional prompt={props.prompt} onPrompt={props.onPrompt} />
-    <details className="final-frame"><summary>Add a final frame <span>Optional</span></summary><FileInput kind="image" label="Final frame" file={props.finalFrame} onChange={props.onFinalFrame} compact /></details>
+    <PromptInput label="Motion prompt" optional prompt={props.prompt} onPrompt={props.onPrompt} />
+    <details className="final-frame"><summary>Final frame <span>Optional</span></summary><FileInput kind="image" label="Final frame" file={props.finalFrame} onChange={props.onFinalFrame} compact /></details>
   </>;
 }
 export function AudioInputs(props: Props) {
   return <>
     <FileInput kind="audio" label="Source audio" file={props.audio} onChange={props.onAudio} onDuration={props.onAudioDuration} />
     <PromptInput label="Visual direction" prompt={props.prompt} onPrompt={props.onPrompt} />
-    <p className="input-note">Your audio sets the timing. Describe the scene to give it a visual direction.</p>
   </>;
 }
 export function ModeInputs(props: Props) {
