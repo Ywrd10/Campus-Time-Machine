@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { ArrowUpRight, Grid2X2, Orbit, SlidersHorizontal } from 'lucide-react';
+import { ArrowUpRight, Map, Orbit, SlidersHorizontal } from 'lucide-react';
 import FreeStudio from './FreeStudio';
 import { TimeMachine } from './timeMachine/TimeMachine';
-import { Wall } from './timeMachine/Wall';
 import { isMockProvider } from './services/generation';
 import './timeMachine/timeMachine.css';
 
-type View = 'time' | 'free' | 'wall';
+type View = 'time' | 'free';
 const VIEWS = [
-  { id: 'time' as const, label: 'Time Machine', icon: Orbit },
+  { id: 'time' as const, label: 'Campus explorer', icon: Map },
   { id: 'free' as const, label: 'Free mode', icon: SlidersHorizontal },
-  { id: 'wall' as const, label: 'Wall', icon: Grid2X2 },
 ];
 export default function App() {
   const [view, setView] = useState<View>('time');
@@ -25,9 +23,8 @@ export default function App() {
     </header>
     <main id="main-workspace" tabIndex={-1}>
       {/* Keep views mounted so tab changes preserve uploads and ongoing polling. */}
-      <div hidden={view !== 'time'}><TimeMachine onWall={() => setView('wall')} /></div>
+      <div hidden={view !== 'time'}><TimeMachine active={view === 'time'} /></div>
       <div hidden={view !== 'free'}><FreeStudio /></div>
-      <div hidden={view !== 'wall'}><Wall active={view === 'wall'} onTravel={() => setView('time')} /></div>
     </main>
   </div>;
 }
