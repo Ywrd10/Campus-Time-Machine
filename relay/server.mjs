@@ -4,7 +4,7 @@
 // TypeScript preset/prompt files can be imported directly (type stripping).
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
+import { Readable, pipeline } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
@@ -40,12 +40,19 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
-async function upstream(path, init = {}) {
+// `stream: true` limits the timeout to the response headers, so a long video download isn't cut off.
+async function upstream(path, { stream = false, ...init } = {}) {
   // The gateway's nginx rejects writes (PUT) without a same-origin Origin header, as a CSRF check.
   const headers = { Cookie: COOKIE, Origin: new URL(UPSTREAM).origin, ...(XSRF && { 'X-XSRFToken': XSRF }), ...init.headers };
   let response;
   try {
-    response = await fetch(UPSTREAM + path, { ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(60_000) });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(new Error('timed out')), 60_000);
+    try {
+      response = await fetch(UPSTREAM + path, { ...init, headers, redirect: 'manual', signal: abort.signal });
+    } finally {
+      if (stream) clearTimeout(timer);
+    }
   } catch (error) {
     throw new HttpError(502, `Can't reach the Jupyter instance: ${error.cause?.code || error.message}`);
   }
@@ -238,7 +245,7 @@ const CONTENT_TYPES = { mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', j
 
 async function streamOutput(req, res, jobId, file) {
   const range = req.headers.range;
-  const response = await upstream(`/files/jobs/${jobId}/${file}`, { headers: range ? { Range: range } : {} });
+  const response = await upstream(`/files/jobs/${jobId}/${file}`, { stream: true, headers: range ? { Range: range } : {} });
   if (response.status === 404) throw new HttpError(404, 'Output not found.');
   if (!response.ok) throw new HttpError(502, `Fetching ${file} failed (${response.status}).`);
   const headers = { 'Content-Type': CONTENT_TYPES[file.split('.').pop()], 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
@@ -247,7 +254,10 @@ async function streamOutput(req, res, jobId, file) {
     if (value) headers[name] = value;
   }
   res.writeHead(response.status, headers);
-  Readable.fromWeb(response.body).pipe(res);
+  // A dropped browser connection or upstream error ends this response only, not the relay.
+  pipeline(Readable.fromWeb(response.body), res, error => {
+    if (error && error.code !== 'ERR_STREAM_PREMATURE_CLOSE') console.error('[relay] stream', jobId, file, error.message);
+  });
 }
 
 function sendJson(res, status, body) {
