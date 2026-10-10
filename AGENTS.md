@@ -33,7 +33,8 @@ Hackathon project generating video with synchronized audio (text→video and ima
   Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Preset places have no photos
   yet, so real journeys need an uploaded photo.
 - **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
-  plays in the browser. Time Machine Snapshot and image→video through the UI not yet run live.
+  plays in the browser. Image→video through the relay works (1024 px photo, 52 s); a full-size photo OOMs until the resize fix is deployed.
+  Time Machine Snapshot not yet run live.
 
 ## The instance
 - Dashboard: https://radeon-global.anruicloud.com/ → "Open notebook" (sets the access cookie; direct
@@ -74,7 +75,7 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   return a readable failure.
 - `bench`: `size` (multiples of 16), `frames`, `steps`, `enhance`. The relay sets `size` and `steps` from the UI preset;
   `frames` and `enhance` are hand-written-job only.
-- Worker env: `STEPS`, `MAX_FRAMES`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default eager).
+- Worker env: `STEPS`, `MAX_FRAMES`, `MAX_IMAGE_SIDE`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default eager).
 - `status.json`: `{status, progress, error?, output?}`; `output` has width/height/fps/durationSeconds/seed/prompt
   (expanded), steps, generateSeconds, peakVramGB.
 - `k6_sweep_submit.py` queues the 8-job speed/quality grid used for `outputs/k6/`.
@@ -103,6 +104,9 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   polls — the real protection is not offloading (Kandinsky Lite fits on the GPU).
 - **The gateway's nginx 403s any write (PUT/DELETE) without a same-origin `Origin` header**, even with a valid cookie
   (GETs pass). The relay sends `Origin` on every upstream call.
+- **Large input images OOM the prompt enhancer** (found 2026-10-10 with `tests/test.jpg`, 2560×1707): Qwen2.5-VL with
+  eager attention asked for 15.8 GB at the vision encoder; the same photo at 1024×683 ran fine (52 s). The repo's
+  `worker_k6.py` now shrinks images to `MAX_IMAGE_SIDE` (1024) before use; **not yet deployed to the instance**.
 - **A VRAM OOM is harmless** (Python exception; the worker marks the job failed and continues).
 - **Egress proxy:** `github.com` blocked (use `codeload.github.com/.../tar.gz/...` for pip), pip uses a mirror,
   `huggingface.co` returns proxy 503 → use `HF_ENDPOINT=https://hf-mirror.com`. The mirror throws read timeouts on
@@ -137,8 +141,8 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 
 ## Next steps
 0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
-   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker on the instance
-   doesn't need redeploying (only a comment changed in `worker_k6.py`).
+   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. Deploy the repo's
+   `worker_k6.py` (image resize fix) and restart the worker.
 1. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
 2. **Time Machine:** campus photos in `public/places/` + `places.ts`; worker-side Film chaining (last frame → next

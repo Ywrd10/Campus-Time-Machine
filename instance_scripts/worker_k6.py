@@ -25,6 +25,9 @@ STEPS = int(os.environ.get("STEPS", 10))  # model card: 10; pipeline docstring: 
 MAX_FRAMES = int(os.environ.get("MAX_FRAMES", 121))  # 4k+1; 121 = the 5 s the model was trained on
 TE_ATTN = os.environ.get("TE_ATTN", "eager")  # SDPA was silently wrong for Gemma 4 here; k6_checks.py te decides
 JOB_TTL = float(os.environ.get("JOB_TTL_HOURS", 6)) * 3600
+# Longest side for input images. Prompt expansion feeds the image to Qwen2.5-VL with eager attention, which is
+# quadratic in image tokens: a 2560x1707 photo asked for 15.8 GB and OOM'd; 1024x683 worked (52 s job).
+MAX_IMAGE_SIDE = int(os.environ.get("MAX_IMAGE_SIDE", 1024))
 # Native Kandinsky 6 SD sizes (divisible by 16).
 SIZES = {"16:9": (864, 480), "9:16": (480, 864), "1:1": (512, 512)}
 
@@ -132,6 +135,7 @@ def run(job_dir, req, status):
         if req.get("finalFrame"):
             raise UserError("Final-frame conditioning isn't available on this backend yet. Remove the final frame and try again.")
         image = Image.open(os.path.join(job_dir, req["image"])).convert("RGB")  # pipeline resizes + center-crops
+        image.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE), Image.LANCZOS)  # no-op for smaller images
         if not prompt:
             prompt = "The scene comes to life with natural, smooth motion."
 
