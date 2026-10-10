@@ -42,7 +42,9 @@ describe('Async generation adapters', () => {
     const submitted = await service.submit(request);
     expect((await service.getStatus(submitted.jobId)).status).toBe('queued');
     time = 3000;
-    expect((await service.getStatus(submitted.jobId)).status).toBe('processing');
+    const processing = await service.getStatus(submitted.jobId);
+    expect(processing.status).toBe('processing');
+    expect(processing.progress).toBeUndefined();
     time = 7000;
     const job = await service.getStatus(submitted.jobId);
     expect(job.status).toBe('completed');

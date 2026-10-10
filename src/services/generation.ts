@@ -21,7 +21,7 @@ export class MockGenerationService implements GenerationService {
     const job = this.jobs.get(jobId);
     if (!job) throw new Error('This demo job is no longer available. Generate again.');
     const elapsed = this.now() - job.started;
-    if (elapsed < 6500) return { jobId, status: elapsed < 1000 ? 'queued' : 'processing', progress: Math.min(96, Math.round(elapsed / 6500 * 100)) };
+    if (elapsed < 6500) return { jobId, status: elapsed < 1000 ? 'queued' : 'processing' };
     if (job.fail) return { jobId, status: 'failed', error: 'The demo worker could not finish this job. Try again.' };
     return {
       jobId, status: 'completed', progress: 100,
@@ -94,7 +94,7 @@ export const generationService: GenerationService = isMockProvider
   ? new MockGenerationService(import.meta.env.VITE_MOCK_FAIL === 'true')
   : new HttpGenerationService(import.meta.env.VITE_API_BASE_URL || '/api');
 
-export async function downloadOutput(output: Mp4Output): Promise<void> {
+export async function downloadOutput(output: Pick<Mp4Output, 'url' | 'filename'>): Promise<void> {
   const response = await fetch(output.url);
   if (!response.ok) throw new Error('Download failed. Please try again.');
   const url = URL.createObjectURL(await response.blob());

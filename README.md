@@ -1,6 +1,26 @@
-# Knight Studio
+# Campus Time Machine / Knight Studio
 
 A frontend prototype for Knight Hacks IX: React, TypeScript, Vite, Tailwind CSS, and Lucide icons. All inference belongs to your team's separate backend.
+
+## Campus Time Machine
+
+The default workspace follows [the Campus Time Machine plan](docs/campus-time-machine.md). It has place and moment pickers, Snapshot/Film selection, a Now → Shift → Arrive timeline, an arrival player, a keyboard-accessible before/after comparison, and a Wall. The dark green instrument-panel styling uses brass accents, destination readouts, and a viewfinder. The original text/image/audio studio remains available as **Free mode**; switching views preserves inputs and active polling.
+
+In demo mode, all journeys return the existing fixed 6-second MP4. Timeline stages are explicitly simulated and omit invented percentages. The sample is not a campus render and has no audio. Campus locations and moment thumbnails are original vector concept illustrations, labeled as such. There are no team campus photos or 2–3 genuine pre-rendered campus films in the repository yet. Add your own photos using `public/places/README.md` and `src/timeMachine/places.ts`; replace the mock sample and its actual metadata in `src/services/timeline.ts` when the team's films are ready. HTTP-mode generation requires a real photo in this frontend until the preset photos are added.
+
+Mock **Add to Wall** saves completed journey metadata in this browser, not to a shared server. Reloading restores the current timeline job ID and its place/moment/length from localStorage, including mock jobs. Uploaded image bytes and credentials are never stored there. If browser storage is unavailable, generation still works but reload recovery is unavailable. Uploaded-photo comparison after a reload requires the relay to return `beforeImageUrl`; a stale blob URL is not persisted. **Stop waiting** clears local tracking without canceling a server job. Browser tabs share the saved metadata but do not coordinate concurrent renders.
+
+Opening day uses October 7, 1968, verified against [UCF University Archives](https://library.ucf.edu/about/departments/special-collections-university-archives/university-history/). Its scene is an imagined period treatment of a current photo, not a historically accurate reconstruction. Moment templates avoid official logos, mascots, and seals.
+
+### Timeline relay contract
+
+Time Machine uses the same provider/base URL environment variables as Free mode. `src/services/timeline.ts` centralizes these planned endpoints:
+
+- `POST /api/timelines`: multipart `place` **or** `image`, plus `moment` and `length` (`snapshot` / `film`); returns `{ "jobId": "..." }`.
+- `GET /api/timelines/:id`: the existing job status/output contract plus `shots` (one for Snapshot, three for Film). Each shot has `status`, optional `phase` (`now` / `shift` / `arrive`), optional numeric `progress`, optional `output`, and optional `thumbnail`. Phases can be inferred by order if omitted. `beforeImageUrl` and `finalFrameUrl` are optional top-level image URLs for comparison.
+- `GET /api/wall`: an array of `{ "id", "place", "moment", "thumbnail", "url" }` for completed journeys. `moment` uses the IDs in `src/timeMachine/moments.ts`; `place` is a display name. Completed real jobs appear on the relay's Wall automatically; the frontend does not invent a publishing endpoint.
+
+The relay owns prompt construction, source photos for preset place IDs, safe shot durations, audio generation, and chaining/stitching. The browser sends selection IDs, never arbitrary shot templates. Snapshot/Film are orchestration choices, not new raw LTX generation presets. The UI only displays real numeric progress when the relay supplies it. Both workspaces use `src/lib/pollJob.ts`, with abort handling, 800ms polling, and a 15-minute limit. Runtime guards reject invalid status/output shapes and executable media URL protocols. Worker/relay changes remain the backend team's responsibility.
 
 ## Run locally
 
@@ -34,11 +54,13 @@ npm run preview
 
 1. Select an example prompt or write your own.
 2. Keep the defaults: LTX-2.5 Fast, 1280×720, 24 FPS, 6 seconds.
-3. Generate, watch the simulated job progress, then play and download the MP4.
+3. Generate, wait for the simulated job to complete, then play and download the MP4.
 4. Change to Image-to-Video for a source image, optional motion prompt, and optional final frame.
 5. Change to Audio-to-Video for an audio preview and visual prompt. Clip duration comes from audio metadata; it is not manually selectable.
 
 All three modes use the same mock adapter. Uploaded files stay in the browser during mock mode. The bundled MP4 is a fixed 6-second sample, independent of the prompt, uploaded media, aspect ratio, or selected settings. It is explicitly labeled as a demo; output metadata describes the actual file. Image/audio conditioning is UI scaffolding until a real backend is connected. Download errors and video playback errors are shown separately from generation errors.
+
+The studio uses a compact two-column workspace on desktop and stacked panels on smaller screens. Example prompts and the optional final frame are collapsible. Mock jobs show queued/processing states without fabricated percentages. A real backend can supply a numeric `progress` value; otherwise processing remains indeterminate.
 
 The sample is an original illustrated mountain landscape with a slow camera zoom, encoded as H.264 MP4 (1280×720, 24 FPS, 6 seconds, no audio). No remote media service is required for the demo.
 
@@ -111,7 +133,7 @@ On completion:
 
 Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of memory." }`
 
-The hook polls every 800ms, aborts browser requests on reset/unmount, prevents duplicate submissions, and stops after 15 minutes. Cancel preview stops local polling; it does not cancel a backend job. There is no persistence across page reloads. Update the HTTP adapter alone if your backend uses different routes or field names. The UI consumes the `GenerationService` interface in `src/lib/types.ts`.
+The hook polls every 800ms, aborts browser requests on reset/unmount, prevents duplicate submissions, and stops after 15 minutes. Stop waiting stops local polling; it does not cancel a backend job. There is no persistence across page reloads. Update the HTTP adapter alone if your backend uses different routes or field names. The UI consumes the `GenerationService` interface in `src/lib/types.ts`. `progress` is optional in status responses.
 
 Each HTTP request has a 30-second timeout. A failed network request ends the local job flow with an error and allows retry.
 
@@ -245,6 +267,8 @@ No authentication, accounts, database, payments, or credentials are included.
 
 ## Verification
 
-Strict TypeScript and the Vite production build pass. Seven Vitest checks pass, covering the documented configuration matrix, defaults, portrait dimensions, prompt validation, audio limits, simulated queued/processing/completed/failed jobs, and abort handling. The bundled MP4 was encoded and decoded with FFmpeg. Vite starts and reports its local URL.
+Strict TypeScript and the Vite production build pass. Sixteen Vitest checks cover the Free mode settings/validation/jobs and timeline ordering, snapshots, mock reload recovery, failed jobs, relay serialization, response validation, wall deduplication, unavailable storage, and shared polling. The bundled MP4 was encoded and decoded with FFmpeg. Vite starts and reports its local URL.
 
-Browser visual checks and interactive playback/download/upload checks could not be completed in the authoring environment because localhost connections timed out. Run `npm run dev` in your terminal and check the demo walkthrough in your browser before the hackathon presentation. The AMD inference backend (`worker_k6.py` on the Radeon instance) is verified with hand-written jobs; it has not yet been tested through the UI and relay.
+The frontend UI was checked in a local browser: text generation, native MP4 playback and download, image/final-frame previews, audio preview and duration, setting constraints, keyboard tab navigation, and failed-job retry. Responsive checks cover a 1366×768 desktop viewport and a 390×844 mobile viewport. No lint script is configured; `npm run build` provides strict TypeScript checking. The real AMD inference backend has not been integrated or tested.
+
+Campus Time Machine browser checks cover place/moment selection, one-shot Snapshot and three-shot Film structure, custom photo upload, journey completion and reload recovery, comparison range controls, local wall saving and archived playback, failed-job retry, and Free mode generation continuing across view changes. The 320px mobile viewport was also checked for horizontal overflow. The planned live timeline relay, audio synthesis, actual campus films, and multi-shot chaining remain unverified until the backend and assets are supplied.
