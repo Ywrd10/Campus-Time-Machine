@@ -4,3 +4,5 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+# Generated clips and benchmark results stay local.
+outputs/

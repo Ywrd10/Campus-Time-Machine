@@ -115,6 +115,121 @@ The hook polls every 800ms, aborts browser requests on reset/unmount, prevents d
 
 Each HTTP request has a 30-second timeout. A failed network request ends the local job flow with an error and allows retry.
 
+## AMD backend integration plan
+
+Status (2026-10-10): **worker and relay written; UI end-to-end not yet tested.** The instance runs
+`worker_k6.py` (Kandinsky 6.0 Video Lite distilled), verified by hand-written jobs. `relay/server.mjs` and the Vite
+proxy exist but haven't been exercised against `worker_k6.py`. Instance facts and current numbers live in `AGENTS.md`.
+
+### The constraint
+
+The model runs on an AMD Radeon Cloud JupyterLab instance (W7900D 48 GB, ROCm). The only verified way in is
+the JupyterLab web UI at `jupyter.anruicloud.com/instances/<id>/lab`, behind an nginx gate that needs a
+cookie set by the dashboard's "Open notebook" button. There is no SSH, there are no exposed ports, and
+`jupyter-server-proxy` is not installed. (Installing it would mean restarting the Jupyter server, which is the
+container's only entry point and could cost us the instance.) Outbound traffic goes through an egress proxy, so
+whether tunnels like cloudflared or ngrok work is **untested**.
+
+So the frontend can't call a port on the instance directly. The plan uses only channels we have already used
+successfully: the Jupyter **Contents API** (read/write files) and **`/files/`** (download), both over the
+cookie-gated HTTPS host.
+
+### Recommended architecture: file-queue relay over the Jupyter API
+
+```
+Browser (Vite :5173)
+  │  POST /api/generations, GET /api/generations/:id, GET /api/outputs/:id.mp4
+  ▼
+Vite dev proxy  /api → http://127.0.0.1:8000
+  ▼
+relay/ (laptop, Node, no deps)  ── HTTPS + gateway cookie + Jupyter XSRF ──►  jupyter.anruicloud.com
+  │  PUT  /api/contents/jobs/<id>/…        (upload request + media)
+  │  GET  /api/contents/jobs/<id>/status.json
+  │  GET  /files/jobs/<id>/out.mp4         (stream back to browser)
+  ▼
+/workspace/jobs/<id>/  ◄── watched by ──  worker_k6.py (instance, long-lived, pipeline resident on GPU)
+```
+
+The frontend doesn't change: set `VITE_GENERATION_PROVIDER=http`, `VITE_API_BASE_URL=/api`, and add
+`server.proxy: { '/api': 'http://127.0.0.1:8000' }` to `vite.config.ts`. The relay serves the contract above
+exactly, and the MP4 `url` is same-origin (`/api/outputs/<id>.mp4`), so CORS and blob downloads just work.
+
+**Instance side: `worker_k6.py`** (lives in `/workspace`, backed up to `instance_scripts/`)
+- Launched once with `subprocess.Popen(..., start_new_session=True)` and logging to `/workspace/jobs/worker.log`.
+  It survives kernel restarts and browser reloads, and writes `jobs/worker.heartbeat` every 10 s once the model is loaded.
+- Keeps the whole Kandinsky pipeline resident on the GPU (~25 GB): no CPU offload, no per-job reloads, host RAM
+  ~2.5 GB. One `Kandinsky6TI2VAPipeline` serves text and image modes (`image=` conditions the first frame).
+- Single GPU, so jobs run one at a time in FIFO order. It scans `/workspace/jobs/*/request.json` (the relay
+  writes this file **last**, as the "ready" marker) and handles the oldest job without a `status.json`.
+- Writes `status.json` atomically (write `.tmp`, then `os.replace`). Shape: `{status, progress, error?, output?}`.
+  Progress: 2% start, 10% after prompt expansion, 10–90% across the denoise steps, 92% while exporting.
+- Maps the UI request to what the model can do (next section), writes `out.mp4`, and fills `output` with the
+  **real** width, height, fps, and duration (plus seed, expanded prompt, steps, generateSeconds, peakVramGB).
+- Catches `torch.OutOfMemoryError` and other exceptions, reports `failed` with a readable message, frees
+  memory, and carries on. A job left `processing` by a dead worker is marked failed on restart.
+- Deletes job folders older than `JOB_TTL_HOURS` (6). If MP4 export fails it keeps `frames.npy`/`audio.pt`.
+- The previous LTX-2.5 `worker.py` is kept for reference only; its host RAM grew until the instance died.
+
+**Laptop side: `relay/server.mjs`** (Node built-ins only, port 8000)
+- `POST /api/generations`: parses the multipart body (`request.formData()` on a `Request`), validates it, and
+  creates a `jobId`. It uploads `image`/`finalFrame`/`audio`, then `request.json`, to `jobs/<jobId>/` with
+  `PUT /api/contents/...` (base64 for binaries; the server limit is far above our 15/32 MB caps). Returns
+  `{ jobId, createdAt }` immediately.
+- `GET /api/generations/:id`: returns `queued` until `status.json` exists, otherwise its contents, with
+  `output.url` rewritten to `/api/outputs/<id>.mp4`. It caches the upstream result for about 2 s so the
+  browser's 800 ms polling doesn't hammer Jupyter. A `404` from upstream means `queued`.
+- `GET /api/outputs/:id.mp4`: streams `/files/jobs/<id>/out.mp4`, passing `Range` headers through so the
+  `<video>` element can seek.
+- Secrets: the gateway cookie(s), the Jupyter `_xsrf` value, and the instance base path go in
+  `relay/.env.local` (already gitignored via `.env.*`). They are **never** `VITE_` variables. Copy them from
+  Chrome DevTools → Application → Cookies after clicking "Open notebook". If any upstream call returns
+  401/403, the relay reports a clear "re-open the notebook and refresh the cookie" error.
+
+**Why this approach:** no installs or restarts on the instance, no inbound ports, no new egress, and
+every hop has already worked from this laptop. Jobs and outputs survive relay restarts because they live on
+`/workspace`, and the frontend contract and adapter stay unchanged. The cost is polling latency of a second or
+two, which doesn't matter next to roughly 90 s per clip.
+
+### Mapping UI presets to what actually runs
+
+The UI catalog (720p–4K, 6–20 s, 24–50 fps) comes from the hosted LTX API. Kandinsky 6 Lite generates at SD
+sizes, up to 121 frames (5 s) at 24 fps. `worker_k6.py` currently maps every request like this:
+
+1. **Size:** 864×480, or 480×864 when the requested height exceeds the width.
+2. **Frames:** 4k+1 ≥ fps × duration, capped at 121. **fps:** 23–25 honored, anything else becomes 24.
+3. **Steps / guidance:** 10 steps, guidance 1.0 (distilled checkpoint). Qwen prompt expansion on by default.
+4. **Modes:** text→video and image→video work. Final-frame conditioning and audio→video return
+   `failed` with a readable message.
+
+At those defaults a 5 s clip takes ~4 min. For the live demo, ~640×352 at 2–3 s takes 35–50 s (measured table in
+`outputs/k6/README.md`). Next: narrow `src/lib/capabilities.ts` to a Kandinsky preset set (16:9/9:16, 24 fps, ≤5 s)
+and pick the demo default from the sweep; the adapter already shows the real output metadata.
+
+### Alternatives considered
+
+| Option | Verdict |
+| --- | --- |
+| **Outbound tunnel** (cloudflared quick tunnel / ngrok) from the instance to a public HTTPS URL; the worker becomes a normal FastAPI server | Simplest frontend story (point `VITE_API_BASE_URL` at it, add CORS), but egress is proxied and **untested**. It also exposes a GPU endpoint publicly, so it needs a shared-secret header and the team's explicit OK before anyone tries it. Worth a 10-minute test; if it works, the worker's HTTP layer can replace the relay. |
+| `jupyter-server-proxy` (`/instances/<id>/proxy/8000/`) | Clean, but needs a Jupyter server restart on a container where that's the entry point. Too risky without a way to recover. |
+| Relay that drives a **kernel over websocket** (like `runPy`) instead of files | Works, but kernels die on idle or restart and a websocket client adds complexity. File queue is sturdier. |
+| Browser calls Jupyter directly from the frontend | Blocked: cross-origin, Jupyter sends no CORS headers, and it would put Jupyter credentials in the browser bundle. |
+
+### Build order
+
+1. **Prove the transport (about 15 min):** use `curl` from the laptop with the copied cookie + `_xsrf` to
+   `PUT` and `GET` a small file under `/api/contents/jobs/test/` and fetch it via `/files/`. If the cookie
+   doesn't work outside Chrome (e.g. it's bound to the browser), fall back to running the relay's upstream calls
+   from the JupyterLab tab via the `runPy` helper, or try the tunnel option.
+2. ~~**Worker**~~ done: `worker_k6.py`, tested with hand-written jobs (see `AGENTS.md`).
+3. **`relay/server.mjs`** + `vite.config.ts` proxy; add `npm run relay` and a `relay/.env.example`
+   listing the variable names only.
+4. Run end-to-end text→video from the UI; then narrow `capabilities.ts` and update this README's
+   Verification section with what was actually tested.
+5. ~~Image→video in the worker~~ done. Audio→video isn't supported by Kandinsky 6.
+6. Demo hardening: show a queue position in `status.json` (`queued` with `progress: 0`) and a
+   `GET /api/health` on the relay that reports the worker's heartbeat file (`/workspace/jobs/worker.heartbeat`,
+   touched every 10 s), so the UI can say "GPU worker offline" instead of polling forever.
+
 ## Project map
 
 - `src/components/ModeInputs.tsx`: modular text, image, and audio panels.
@@ -132,4 +247,4 @@ No authentication, accounts, database, payments, or credentials are included.
 
 Strict TypeScript and the Vite production build pass. Seven Vitest checks pass, covering the documented configuration matrix, defaults, portrait dimensions, prompt validation, audio limits, simulated queued/processing/completed/failed jobs, and abort handling. The bundled MP4 was encoded and decoded with FFmpeg. Vite starts and reports its local URL.
 
-Browser visual checks and interactive playback/download/upload checks could not be completed in the authoring environment because localhost connections timed out. Run `npm run dev` in your terminal and check the demo walkthrough in your browser before the hackathon presentation. The real AMD inference backend has not been integrated or tested.
+Browser visual checks and interactive playback/download/upload checks could not be completed in the authoring environment because localhost connections timed out. Run `npm run dev` in your terminal and check the demo walkthrough in your browser before the hackathon presentation. The AMD inference backend (`worker_k6.py` on the Radeon instance) is verified with hand-written jobs; it has not yet been tested through the UI and relay.
