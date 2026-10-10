@@ -41,7 +41,8 @@ class HttpError extends Error {
 }
 
 async function upstream(path, init = {}) {
-  const headers = { Cookie: COOKIE, ...(XSRF && { 'X-XSRFToken': XSRF }), ...init.headers };
+  // The gateway's nginx rejects writes (PUT) without a same-origin Origin header, as a CSRF check.
+  const headers = { Cookie: COOKIE, Origin: new URL(UPSTREAM).origin, ...(XSRF && { 'X-XSRFToken': XSRF }), ...init.headers };
   let response;
   try {
     response = await fetch(UPSTREAM + path, { ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(60_000) });

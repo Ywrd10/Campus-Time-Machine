@@ -32,7 +32,8 @@ Hackathon project generating video with synchronized audio (text→video and ima
   only: one i2v shot, 640×352, 3 s, 10 steps, prompt from `moments.ts`), `/api/wall` (index in `relay/wall.json`).
   Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Preset places have no photos
   yet, so real journeys need an uploaded photo.
-- The UI → relay path was tested against a local fake Jupyter server only; **not yet against the live instance.**
+- **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
+  plays in the browser. Time Machine Snapshot and image→video through the UI not yet run live.
 
 ## The instance
 - Dashboard: https://radeon-global.anruicloud.com/ → "Open notebook" (sets the access cookie; direct
@@ -100,6 +101,8 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   instance is gone. This destroyed the first two instances (both LTX). Watch `anon` in `/sys/fs/cgroup/memory.stat`.
   Workers exit themselves at limit − 5 GB, but a single big host allocation can jump that margin between 50 ms
   polls — the real protection is not offloading (Kandinsky Lite fits on the GPU).
+- **The gateway's nginx 403s any write (PUT/DELETE) without a same-origin `Origin` header**, even with a valid cookie
+  (GETs pass). The relay sends `Origin` on every upstream call.
 - **A VRAM OOM is harmless** (Python exception; the worker marks the job failed and continues).
 - **Egress proxy:** `github.com` blocked (use `codeload.github.com/.../tar.gz/...` for pip), pip uses a mirror,
   `huggingface.co` returns proxy 503 → use `HF_ENDPOINT=https://hf-mirror.com`. The mirror throws read timeouts on

@@ -142,8 +142,8 @@ Each HTTP request has a 30-second timeout. A failed network request ends the loc
 ## AMD backend integration plan
 
 Status (2026-10-10): **worker, relay, and frontend connected.** The instance runs `worker_k6.py` (Kandinsky 6.0
-Video Lite distilled), verified by hand-written jobs. The UI → Vite proxy → relay path was tested against a local fake
-Jupyter server; it has **not** yet run against the live instance. Instance facts and current numbers live in
+Video Lite distilled). A text→video clip has gone through the full UI → Vite proxy → relay → worker path on the
+live instance. Instance facts and current numbers live in
 `AGENTS.md`.
 
 To run it: put the cookie in `relay/.env.local` (see `relay/.env.example`), then run `npm run relay` and
@@ -278,6 +278,6 @@ Strict TypeScript and the Vite production build pass. Sixteen Vitest checks cove
 
 The frontend UI was checked in a local browser: text generation, native MP4 playback and download, image/final-frame previews, audio preview and duration, setting constraints, keyboard tab navigation, and failed-job retry. Responsive checks cover a 1366×768 desktop viewport and a 390×844 mobile viewport. No lint script is configured; `npm run build` provides strict TypeScript checking. These browser checks predate the switch to the Kandinsky presets.
 
-Kandinsky presets and relay (2026-10-10): `relay/server.mjs` was run against a local fake Jupyter server that stands in for the Contents API, `/files`, and the worker. Checked: Free-mode text generation from the UI through the Vite proxy (the request reached the worker as 640×352, 10 steps), relay rejection of untested sizes, Time Machine Snapshot with an uploaded photo (prompt built from the moment template, `beforeImageUrl`, Wall listing), the readable Film and missing-place-photo errors, and MP4/source-image streaming. **Not yet run against the live instance.**
+Kandinsky presets and relay (2026-10-10): `relay/server.mjs` was run against a local fake Jupyter server that stands in for the Contents API, `/files`, and the worker. Checked: Free-mode text generation from the UI through the Vite proxy (the request reached the worker as 640×352, 10 steps), relay rejection of untested sizes, Time Machine Snapshot with an uploaded photo (prompt built from the moment template, `beforeImageUrl`, Wall listing), the readable Film and missing-place-photo errors, and MP4/source-image streaming. Then against the live instance: Free-mode text→video from the UI (640×352, 3 s, 10 steps) completed in 48 s of GPU time and played in the browser. Time Machine and image→video haven't run live yet.
 
 Campus Time Machine browser checks cover place/moment selection, one-shot Snapshot and three-shot Film structure, custom photo upload, journey completion and reload recovery, comparison range controls, local wall saving and archived playback, failed-job retry, and Free mode generation continuing across view changes. The 320px mobile viewport was also checked for horizontal overflow. Actual campus films and multi-shot chaining remain unverified until the campus photos and worker chaining exist.
