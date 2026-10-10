@@ -8,15 +8,15 @@
 :root {
   font-family: var(--font-sans);
   color: #eef0f6;
-  background: #101218;
+  background: #111114;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
-  --surface: #181c25;
-  --input: #11151d;
-  --border: #303644;
-  --text-muted: #a4acbd;
+  --surface: #19181e;
+  --input: #121217;
+  --border: #37303f;
+  --text-muted: #aaa0ba;
   --accent: #b8a1ff;
 }
 

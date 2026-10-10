@@ -5,7 +5,7 @@ import { timelineService } from '../services/timeline';
 import { MOMENTS } from './moments';
 import type { WallEntry } from './types';
 
-export function Wall({ active, onTravel }: { active: boolean; onTravel: () => void }) {
+export function Wall({ active, onTravel, refreshKey = 0 }: { active: boolean; onTravel: () => void; refreshKey?: number }) {
   const [entries, setEntries] = useState<WallEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -23,7 +23,7 @@ export function Wall({ active, onTravel }: { active: boolean; onTravel: () => vo
       .catch(error => { if (!abort.signal.aborted) setError(error instanceof Error ? error.message : 'Could not load the wall.'); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [active, refresh]);
+  }, [active, refresh, refreshKey]);
   useEffect(() => {
     if (selected) { setDownloadError(undefined); dialog.current?.showModal(); }
   }, [selected]);
@@ -36,8 +36,8 @@ export function Wall({ active, onTravel }: { active: boolean; onTravel: () => vo
   }
   const visible = entries.filter(entry => filter === 'all' || entry.moment === filter);
   const momentLabel = (id: string) => MOMENTS.find(moment => moment.id === id)?.label || id;
-  return <div className="time-workspace wall-workspace">
-    <div className="time-title-row"><div><p className="eyebrow"><span /> JOURNEY ARCHIVE</p><h1>The Time Machine Wall<span className="title-period">.</span></h1><p className="time-subtitle">{isMockProvider ? 'Your saved demo journeys, stored in this browser.' : 'Completed journeys shared by the timeline relay.'}</p></div>
+  return <section className="wall-workspace" aria-labelledby="wall-heading">
+    <div className="wall-heading-row"><div><p className="eyebrow"><span /> ACROSS CAMPUS, ACROSS TIME</p><h2 id="wall-heading">The Journey Wall<span className="title-period">.</span></h2><p className="time-subtitle">{isMockProvider ? 'Your saved demo journeys, stored in this browser.' : 'Completed journeys shared by the timeline relay.'}</p></div>
       <button type="button" className="secondary-button" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={14} /> Refresh</button></div>
     <div className="wall-toolbar"><span>{entries.length} {entries.length === 1 ? 'journey' : 'journeys'}</span><label>Moment<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All moments</option>{MOMENTS.map(moment => <option key={moment.id} value={moment.id}>{moment.label}</option>)}</select></label></div>
     {loading ? <div className="wall-empty"><LoaderCircle size={26} className="animate-spin" /><p>Loading journeys…</p></div>
@@ -53,5 +53,5 @@ export function Wall({ active, onTravel }: { active: boolean; onTravel: () => vo
       <button className="secondary-button" disabled={downloading} type="button" onClick={download}>{downloading ? <LoaderCircle className="animate-spin" size={14} /> : <ArrowDownToLine size={14} />} Download MP4</button>
       {downloadError && <p className="field-error" role="alert">{downloadError}</p>}
     </dialog>}
-  </div>;
+  </section>;
 }

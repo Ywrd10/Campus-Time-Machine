@@ -6,8 +6,8 @@ import { CampusScene } from './CampusScene';
 import type { Place } from './places';
 import type { JourneyTicket, TimelineJob } from './types';
 
-export function ArrivalView({ job, ticket, beforeUrl, kind, onReset, onWall }: {
-  job: TimelineJob; ticket: JourneyTicket; beforeUrl?: string; kind: Place['kind']; onReset: () => void; onWall: () => void;
+export function ArrivalView({ job, ticket, beforeUrl, kind, onReset, onWall, onSaved }: {
+  job: TimelineJob; ticket: JourneyTicket; beforeUrl?: string; kind: Place['kind']; onReset: () => void; onWall: () => void; onSaved?: () => void;
 }) {
   const [compare, setCompare] = useState(false);
   const [position, setPosition] = useState(50);
@@ -26,6 +26,7 @@ export function ArrivalView({ job, ticket, beforeUrl, kind, onReset, onWall }: {
     const ok = saveToWall({ id: job.jobId, place: ticket.placeName, moment: ticket.moment, thumbnail: job.finalFrameUrl,
       url: output.url, isMock: true });
     setSaved(ok);
+    if (ok) onSaved?.();
     if (!ok) setError('This browser could not save the journey. You can still download the video.');
   }
   return <div className="arrival-view">
