@@ -21,7 +21,7 @@ export default function App() {
       <nav className="workspace-nav" aria-label="Workspace">
         {VIEWS.map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}><Icon size={15} aria-hidden="true" />{label}</button>)}
       </nav>
-      <div className="machine-header-right"><span className="machine-provider"><span />{isMockProvider ? 'DEMO MODE' : 'RELAY MODE'}</span><a href="https://docs.ltx.io/" target="_blank" rel="noreferrer" aria-label="LTX model documentation">LTX-2.5 <ArrowUpRight size={13} /></a></div>
+      <div className="machine-header-right"><span className="machine-provider"><span />{isMockProvider ? 'DEMO MODE' : 'RELAY MODE'}</span><a href="https://huggingface.co/kandinskylab/Kandinsky-6.0-Lite-distill-5s-Diffusers" target="_blank" rel="noreferrer" aria-label="Kandinsky 6 Lite model card">Kandinsky 6 Lite <ArrowUpRight size={13} /></a></div>
     </header>
     <main id="main-workspace" tabIndex={-1}>
       {/* Keep views mounted so tab changes preserve uploads and ongoing polling. */}

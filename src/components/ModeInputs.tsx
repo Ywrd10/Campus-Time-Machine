@@ -12,8 +12,6 @@ interface Props {
   onPrompt: (prompt: string) => void;
   image?: File;
   onImage: (file?: File) => void;
-  finalFrame?: File;
-  onFinalFrame: (file?: File) => void;
   audio?: File;
   onAudio: (file?: File) => void;
   onAudioDuration: (duration: number) => void;
@@ -36,7 +34,6 @@ export function ImageInputs(props: Props) {
   return <>
     <FileInput kind="image" label="First frame" file={props.image} onChange={props.onImage} />
     <PromptInput label="Motion prompt" optional prompt={props.prompt} onPrompt={props.onPrompt} />
-    <details className="final-frame"><summary>Final frame <span>Optional</span></summary><FileInput kind="image" label="Final frame" file={props.finalFrame} onChange={props.onFinalFrame} compact /></details>
   </>;
 }
 export function AudioInputs(props: Props) {

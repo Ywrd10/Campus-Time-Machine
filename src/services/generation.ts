@@ -39,7 +39,11 @@ export class HttpGenerationService implements GenerationService {
     const timeout = AbortSignal.timeout(30_000);
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
     const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, { ...init, signal });
-    if (!response.ok) throw new Error(`Backend request failed (${response.status}). Please try again.`);
+    if (!response.ok) {
+      // Surface the backend's own message (e.g. "GPU worker is offline") when it sends one.
+      const body: unknown = await response.json().catch(() => null);
+      throw new Error(isObject(body) && typeof body.error === 'string' ? body.error : `Backend request failed (${response.status}). Please try again.`);
+    }
     return response.json();
   }
   async submit(request: GenerationRequest, signal?: AbortSignal): Promise<JobSubmission> {

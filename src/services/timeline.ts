@@ -98,7 +98,11 @@ export class HttpTimelineService implements TimelineService {
     const timeout = AbortSignal.timeout(30_000);
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
     const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, { ...init, signal });
-    if (!response.ok) throw new Error(`Timeline relay request failed (${response.status}). Please try again.`);
+    if (!response.ok) {
+      // The relay explains rejections (no photo for this place, Film unavailable, worker offline).
+      const body: unknown = await response.json().catch(() => null);
+      throw new Error(isRecord(body) && typeof body.error === 'string' ? body.error : `Timeline relay request failed (${response.status}). Please try again.`);
+    }
     return response.json();
   }
   async submit(request: TimelineRequest, signal?: AbortSignal) {

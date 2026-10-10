@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { AudioLines, Film, Image, LoaderCircle, Plus, Sparkles, Type } from 'lucide-react';
+import { Film, Image, LoaderCircle, Plus, Sparkles, Type } from 'lucide-react';
 import { ModeInputs } from './components/ModeInputs';
 import { GenerationSettings } from './components/GenerationSettings';
 import { VideoOutput } from './components/VideoOutput';
@@ -11,14 +11,13 @@ import { isMockProvider } from './services/generation';
 const MODES = [
   { id: 'text' as const, name: 'Text-to-Video', icon: Type },
   { id: 'image' as const, name: 'Image-to-Video', icon: Image },
-  { id: 'audio' as const, name: 'Audio-to-Video', icon: AudioLines },
+  // Audio-to-video is hidden: Kandinsky 6 Lite generates its own soundtrack and can't be driven by input audio.
 ];
 export default function FreeStudio() {
   const [mode, setMode] = useState<GenerationMode>('text');
   const [prompts, setPrompts] = useState<Record<GenerationMode, string>>({ text: '', image: '', audio: '' });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [image, setImage] = useState<File>();
-  const [finalFrame, setFinalFrame] = useState<File>();
   const [audio, setAudio] = useState<File>();
   const [audioDuration, setAudioDuration] = useState(0);
   const [validation, setValidation] = useState<string>();
@@ -29,14 +28,14 @@ export default function FreeStudio() {
   function updateSettings(next: Partial<Settings>) {
     const candidate = { ...settings, ...next };
     const normalized = normalizeSettings(candidate);
-    setSettingsNotice(candidate.duration !== normalized.duration ? 'Duration adjusted to 6 seconds for this combination.' : undefined);
+    setSettingsNotice(candidate.duration !== normalized.duration ? `Duration adjusted to ${normalized.duration} seconds for this combination.` : undefined);
     setSettings(normalized); setValidation(undefined);
   }
   function createRequest(): GenerationRequest | undefined {
     const base = { settings: { ...settings }, prompt: prompts[mode] };
     if (mode === 'image') {
       if (!image) { setValidation('Upload a source image first.'); return; }
-      return { ...base, mode, image, finalFrame };
+      return { ...base, mode, image };
     }
     if (mode === 'audio') {
       if (!audio) { setValidation('Upload an audio clip first.'); return; }
@@ -55,7 +54,6 @@ export default function FreeStudio() {
     reset();
     setPrompts({ text: '', image: '', audio: '' });
     setImage(undefined);
-    setFinalFrame(undefined);
     setAudio(undefined);
     setAudioDuration(0);
     setValidation(undefined);
@@ -105,11 +103,10 @@ export default function FreeStudio() {
                     setValidation(undefined);
                   }}
                   image={image} onImage={setImage}
-                  finalFrame={finalFrame} onFinalFrame={setFinalFrame}
                   audio={audio} onAudio={setAudio} onAudioDuration={setAudioDuration}
                 />
               </div>
-              <GenerationSettings settings={settings} onChange={updateSettings} mode={mode} audioDuration={audioDuration} />
+              <GenerationSettings settings={settings} onChange={updateSettings} />
               {settingsNotice && <p className="settings-adjustment" role="status">{settingsNotice}</p>}
               {validation && <p className="field-error" role="alert">{validation}</p>}
               <button type="submit" className="generate-button" disabled={busy}>
@@ -127,7 +124,7 @@ export default function FreeStudio() {
         />
       </div>
       <footer className="workspace-footer">
-        <span>Knight Hacks IX</span><span>{isMockProvider ? 'Mock provider' : 'HTTP provider'} · LTX-2.5</span>
+        <span>Knight Hacks IX</span><span>{isMockProvider ? 'Mock provider' : 'HTTP provider'} · Kandinsky 6 Lite</span>
       </footer>
   </div>;
 }

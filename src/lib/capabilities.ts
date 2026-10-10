@@ -1,56 +1,49 @@
-import type { GenerationRequest, GenerationSettings, Resolution } from './types';
+import type { GenerationRequest, GenerationSettings, Model, Resolution } from './types';
 
-// Documented LTX-2.5 presets: https://docs.ltx.io/models/ltx-2-5
-// These are frontend presets, not an assumption about a hosted LTX provider.
-// A self-hosted worker must map Fast/Pro to its pipelines, pad/crop spatial
-// dimensions, and map duration to valid frame counts (8n+1) as needed.
+// Kandinsky 6.0 Video Lite (distilled) on the AMD W7900D worker. Every size, duration, and step count below was
+// rendered on the instance; see outputs/k6/README.md for the clips. The relay imports this file too, so the browser
+// and the worker agree on which presets exist.
 export const DEFAULT_SETTINGS: GenerationSettings = {
-  model: 'ltx-2-5-fast', resolution: '720p', aspectRatio: '16:9', fps: 24, duration: 6,
+  model: 'k6-lite-quality', resolution: '352p', aspectRatio: '16:9', fps: 24, duration: 3,
 };
-export const RESOLUTIONS: Resolution[] = ['720p', '1080p', '1440p', '4K'];
-export const FPS_OPTIONS = [24, 25, 48, 50] as const;
-const DIMENSIONS: Record<Resolution, [number, number]> = {
-  '720p': [1280, 720], '1080p': [1920, 1080], '1440p': [2560, 1440], '4K': [3840, 2160],
+export const RESOLUTIONS: Resolution[] = ['352p', '480p'];
+export const FPS_OPTIONS = [24] as const;
+export const DURATIONS = [2, 3, 5];
+// Denoising steps per model choice. 6 steps is ~25% faster but the audio comes out ~9 dB quieter.
+export const STEPS: Record<Model, number> = { 'k6-lite-fast': 6, 'k6-lite-quality': 10 };
+const DIMENSIONS: Record<Resolution, [number, number]> = { '352p': [640, 352], '480p': [864, 480] };
+// Measured pipeline seconds (denoise + decode, excluding ~5–16 s prompt expansion and export).
+const MEASURED: Record<string, number> = {
+  '352p/2/10': 36, '352p/3/6': 37, '352p/3/10': 49, '352p/5/10': 93,
+  '480p/2/10': 69, '480p/3/6': 83, '480p/3/10': 110, '480p/5/10': 223,
 };
-export function dimensions(settings: GenerationSettings): [number, number] {
+
+export function dimensions(settings: Pick<GenerationSettings, 'resolution' | 'aspectRatio'>): [number, number] {
   const [w, h] = DIMENSIONS[settings.resolution];
   return settings.aspectRatio === '16:9' ? [w, h] : [h, w];
 }
-export function allowedDurations(settings: GenerationSettings): number[] {
-  const extended = settings.model === 'ltx-2-5-fast' &&
-    ['720p', '1080p'].includes(settings.resolution) && [24, 25].includes(settings.fps);
-  return extended ? [6, 8, 10, 12, 14, 16, 18, 20] : [6, 8, 10];
+export function allowedDurations(_settings: GenerationSettings): number[] {
+  return DURATIONS;
 }
 export function normalizeSettings(settings: GenerationSettings): GenerationSettings {
-  return { ...settings, duration: allowedDurations(settings).includes(settings.duration) ? settings.duration : 6 };
+  return { ...settings, duration: DURATIONS.includes(settings.duration) ? settings.duration : DEFAULT_SETTINGS.duration };
 }
-export function maximumAudioDuration(settings: GenerationSettings): number {
-  // Audio endpoint follows the input; it has a separate resolution/model limit.
-  // https://docs.ltx.io/api-documentation/api-reference/async-video-generation/submit-audio-to-video
-  return settings.model === 'ltx-2-5-fast' && ['720p', '1080p'].includes(settings.resolution) ? 20 : 10;
+export function estimatedSeconds(settings: GenerationSettings): number | undefined {
+  return MEASURED[`${settings.resolution}/${settings.duration}/${STEPS[settings.model]}`];
 }
 export function validateRequest(request: GenerationRequest): string | null {
   const s = request.settings;
-  if (!['ltx-2-5-fast', 'ltx-2-5-pro'].includes(s.model) ||
-      !RESOLUTIONS.includes(s.resolution) || !FPS_OPTIONS.includes(s.fps) ||
+  if (!(s.model in STEPS) || !RESOLUTIONS.includes(s.resolution) || !FPS_OPTIONS.includes(s.fps) ||
       !['16:9', '9:16'].includes(s.aspectRatio)) return 'Choose supported generation settings.';
   if (request.prompt.length > 5000) return 'Keep your prompt under 5,000 characters.';
-  if ((request.mode === 'text' || request.mode === 'audio') && !request.prompt.trim())
-    return 'Describe the scene you want to create.';
-  if (request.mode !== 'audio' && !allowedDurations(s).includes(s.duration))
-    return 'Choose a supported duration for these settings.';
+  if (request.mode === 'audio') return 'Audio-to-video isn’t available with Kandinsky 6 Lite.';
+  if (request.mode === 'text' && !request.prompt.trim()) return 'Describe the scene you want to create.';
+  if (!DURATIONS.includes(s.duration)) return 'Choose a supported duration for these settings.';
   if (request.mode === 'image') {
     if (!request.image) return 'Upload a source image first.';
-    const error = validateFile(request.image, 'image') || (request.finalFrame && validateFile(request.finalFrame, 'image'));
+    if (request.finalFrame) return 'Final-frame conditioning isn’t available with Kandinsky 6 Lite.';
+    const error = validateFile(request.image, 'image');
     if (error) return error;
-  }
-  if (request.mode === 'audio') {
-    const error = validateFile(request.audio, 'audio');
-    if (error) return error;
-    if (!Number.isFinite(request.audioDuration) || request.audioDuration <= 0)
-      return 'Wait for the audio preview to load, or choose a playable audio file.';
-    if (request.audioDuration > maximumAudioDuration(s))
-      return `Audio must be ${maximumAudioDuration(s)} seconds or shorter with these settings. Choose a shorter clip or a compatible model and resolution.`;
   }
   return null;
 }

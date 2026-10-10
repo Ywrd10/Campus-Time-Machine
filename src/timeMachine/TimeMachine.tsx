@@ -15,7 +15,8 @@ import type { JourneyLength, TimelineRequest } from './types';
 export function TimeMachine({ onWall }: { onWall: () => void }) {
   const [placeId, setPlaceId] = useState(PLACES[0].id);
   const [momentId, setMomentId] = useState(MOMENTS[0].id);
-  const [length, setLength] = useState<JourneyLength>('film');
+  // The relay can't chain shots yet, so real journeys are Snapshot-only.
+  const [length, setLength] = useState<JourneyLength>(isMockProvider ? 'film' : 'snapshot');
   const [image, setImage] = useState<File>();
   const [validation, setValidation] = useState<string>();
   const photoUrl = useObjectUrl(image);
@@ -47,7 +48,7 @@ export function TimeMachine({ onWall }: { onWall: () => void }) {
   }
   return <div className="time-workspace">
     <div className="time-title-row"><div><p className="eyebrow"><span /> UCF CAMPUS / TEMPORAL EXPLORER</p><h1>Campus Time Machine<span className="title-period">.</span></h1><p className="time-subtitle">Choose a place. Pick a moment. See what changes.</p></div>
-      <div className="system-readout"><span>ENGINE</span><strong>LTX-2.5</strong><small>{isMockProvider ? 'DEMO ONLINE' : 'RELAY MODE'}</small></div>
+      <div className="system-readout"><span>ENGINE</span><strong>KANDINSKY 6</strong><small>{isMockProvider ? 'DEMO ONLINE' : 'RELAY MODE'}</small></div>
     </div>
     <div className="time-grid">
       <aside className="journey-controls" aria-label="Journey configuration">
@@ -57,14 +58,14 @@ export function TimeMachine({ onWall }: { onWall: () => void }) {
           <div className="section-caption"><span className="step-number">03</span><h2 id="length-heading">Set your journey</h2><Clock3 size={15} aria-hidden="true" /></div>
           <div className="length-picker" role="group" aria-label="Journey length">
             <button type="button" aria-pressed={!film} disabled={locked} onClick={() => setLength('snapshot')}><ScanLine size={17} /><span><strong>Snapshot</strong><small>One shot · Arrive</small></span></button>
-            <button type="button" aria-pressed={film} disabled={locked} onClick={() => setLength('film')}><Film size={17} /><span><strong>Film</strong><small>Now → Shift → Arrive</small></span></button>
+            <button type="button" aria-pressed={film} disabled={locked || !isMockProvider} onClick={() => setLength('film')}><Film size={17} /><span><strong>Film</strong><small>{isMockProvider ? 'Now → Shift → Arrive' : 'Coming soon'}</small></span></button>
           </div>
           {validation && <p className="field-error" role="alert">{validation}</p>}
           <button className="travel-button" type="button" disabled={busy} onClick={arrived ? reset : travel}>
             {busy ? <LoaderCircle size={17} className="animate-spin" /> : arrived ? <RotateCcw size={17} /> : <Orbit size={18} />}
             <span>{busy ? 'Traveling through time…' : arrived ? 'Start another journey' : 'Travel through time'}</span>{!busy && !arrived && <ArrowRight size={17} />}
           </button>
-          <p className="journey-control-note">{isMockProvider ? 'Demo journey · about 8 seconds. No files leave your browser.' : 'Render time depends on the worker and queue.'}</p>
+          <p className="journey-control-note">{isMockProvider ? 'Demo journey · about 8 seconds. No files leave your browser.' : 'About a minute per Snapshot, plus any queue.'}</p>
         </section>
       </aside>
       <section className={`time-preview ${busy ? 'is-traveling' : ''}`} aria-labelledby="destination-heading" aria-busy={busy}>
@@ -88,6 +89,6 @@ export function TimeMachine({ onWall }: { onWall: () => void }) {
         <span className="sr-only" role="status" aria-live="polite">{arrived ? 'Journey complete. Your video is ready.' : busy ? 'Your journey is processing.' : journey.status === 'failed' ? 'The journey failed.' : 'Ready to start a journey.'}</span>
       </section>
     </div>
-    <footer className="time-footer"><span>KNIGHT HACKS IX <span>/</span> CAMPUS TIME MACHINE</span><span>{isMockProvider ? 'MOCK PROVIDER' : 'TEAM RELAY'} <span>·</span> LTX-2.5</span></footer>
+    <footer className="time-footer"><span>KNIGHT HACKS IX <span>/</span> CAMPUS TIME MACHINE</span><span>{isMockProvider ? 'MOCK PROVIDER' : 'TEAM RELAY'} <span>·</span> KANDINSKY 6 LITE</span></footer>
   </div>;
 }
