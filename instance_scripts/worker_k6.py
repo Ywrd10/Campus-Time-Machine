@@ -165,6 +165,10 @@ def run(job_dir, req, status):
     # output_type="np" gives float frames in [0, 1]; this diffusers' encode_video needs uint8.
     clip = (np.clip(result.frames[0], 0, 1) * 255).round().astype(np.uint8)
     audio = torch.as_tensor(result.audio[0]).float().cpu()[None]  # (1, samples) as in the diffusers example
+    # Last frame as lossless PNG: the before/after slider, the poster and wall thumbnails, and (later) the
+    # input image for the next shot of a Film.
+    from PIL import Image
+    Image.fromarray(clip[-1]).save(os.path.join(job_dir, "last.png"))
     out = os.path.join(job_dir, "out.mp4")
     try:
         encode_video(clip, fps=fps, output_path=out, audio=audio, audio_sample_rate=SAMPLE_RATE)
@@ -173,7 +177,7 @@ def run(job_dir, req, status):
         np.save(os.path.join(job_dir, "frames.npy"), clip); torch.save(audio, os.path.join(job_dir, "audio.pt"))
         raise
     n, oh, ow = clip.shape[0], clip.shape[1], clip.shape[2]
-    return {"filename": "out.mp4", "mimeType": "video/mp4", "width": int(ow), "height": int(oh),
+    return {"filename": "out.mp4", "mimeType": "video/mp4", "finalFrame": "last.png", "width": int(ow), "height": int(oh),
             "fps": fps, "durationSeconds": round(n / fps, 3), "seed": seed, "prompt": prompt,
             "steps": steps, "generateSeconds": round(gen_s, 1),
             "peakVramGB": round(torch.cuda.max_memory_allocated() / 1e9, 1)}

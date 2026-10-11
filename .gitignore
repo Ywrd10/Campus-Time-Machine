@@ -7,3 +7,4 @@ dist/
 # Generated clips and benchmark results stay local.
 outputs/
 relay/wall.json
+relay/cache/

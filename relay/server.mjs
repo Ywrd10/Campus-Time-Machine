@@ -1,12 +1,13 @@
 // Laptop-side relay between the Vite frontend and the GPU worker on the AMD Jupyter instance.
-// Serves the frontend contract (see README "Suggested backend contract") and moves jobs through
-// /workspace/jobs/<id>/ via the Jupyter Contents API. Node built-ins only; Node >= 22.18 so the shared
+// Serves the frontend contract (see docs/api.md); transport-jupyter.mjs moves jobs to
+// the instance and handles the gateway login. Node built-ins only; Node >= 22.18 so the shared
 // TypeScript preset/prompt files can be imported directly (type stripping).
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Readable, pipeline } from 'node:stream';
-import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { createReadStream, existsSync } from 'node:fs';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { HttpError, createJupyterTransport } from './transport-jupyter.mjs';
 import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
 import { MOMENTS, buildShots } from '../src/timeMachine/moments.ts';
 import { PLACES } from '../src/timeMachine/places.ts';
@@ -15,9 +16,6 @@ const envFile = new URL('./.env.local', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const PORT = Number(process.env.PORT || 8000);
-const UPSTREAM = (process.env.JUPYTER_URL || '').replace(/\/+(lab.*)?$/, '');
-const COOKIE = process.env.JUPYTER_COOKIE || '';
-const XSRF = process.env.JUPYTER_XSRF || '';
 const HEARTBEAT_STALE_S = 60;
 const MODES = ['text', 'image'];
 const LIMITS = { image: 15, finalFrame: 15, audio: 32 }; // MB, same as the frontend
@@ -29,66 +27,15 @@ const SIZES = RESOLUTIONS.flatMap(resolution => ['16:9', '9:16'].map(aspectRatio
 const SNAPSHOT = { model: 'k6-lite-quality', width: 640, height: 352, fps: 24, durationSeconds: 3 };
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
 const WALL_FILE = new URL('./wall.json', import.meta.url); // local index of timeline jobs, newest first
-const AUTH_HINT = 'Jupyter rejected the relay. Re-open the notebook from the Radeon dashboard and refresh JUPYTER_COOKIE in relay/.env.local.';
+// Finished clips are copied here once, so replays (the wall, the demo) don't depend on the gateway.
+const CACHE_DIR = new URL('./cache/', import.meta.url);
 
-if (!UPSTREAM || !COOKIE) {
-  console.error('Set JUPYTER_URL and JUPYTER_COOKIE in relay/.env.local (see relay/.env.example).');
+let instance;
+try {
+  instance = createJupyterTransport(process.env);
+} catch (error) {
+  console.error(error.message);
   process.exit(1);
-}
-
-class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
-
-// `stream: true` limits the timeout to the response headers, so a long video download isn't cut off.
-async function upstream(path, { stream = false, ...init } = {}) {
-  // The gateway's nginx rejects writes (PUT) without a same-origin Origin header, as a CSRF check.
-  const headers = { Cookie: COOKIE, Origin: new URL(UPSTREAM).origin, ...(XSRF && { 'X-XSRFToken': XSRF }), ...init.headers };
-  let response;
-  try {
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(new Error('timed out')), 60_000);
-    try {
-      response = await fetch(UPSTREAM + path, { ...init, headers, redirect: 'manual', signal: abort.signal });
-    } finally {
-      if (stream) clearTimeout(timer);
-    }
-  } catch (error) {
-    throw new HttpError(502, `Can't reach the Jupyter instance: ${error.cause?.code || error.message}`);
-  }
-  // The gateway answers an expired cookie with 403 or a redirect to the dashboard login.
-  if ([401, 403].includes(response.status) || (response.status >= 300 && response.status < 400))
-    throw new HttpError(502, AUTH_HINT);
-  return response;
-}
-
-const contentsPath = path => `/api/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
-
-async function putContents(path, model) {
-  const response = await upstream(contentsPath(path), {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(model),
-  });
-  if (!response.ok) throw new HttpError(502, `Upload to the instance failed (${response.status}).`);
-}
-
-// Returns parsed JSON for a small text file, or null if it doesn't exist.
-async function readJson(path) {
-  const response = await upstream(`${contentsPath(path)}?content=1&format=text&type=file`);
-  if (response.status === 404) return null;
-  if (!response.ok) throw new HttpError(502, `Reading ${path} from the instance failed (${response.status}).`);
-  return JSON.parse((await response.json()).content);
-}
-
-async function exists(path) {
-  const response = await upstream(`${contentsPath(path)}?content=0`);
-  if (response.status === 404) return false;
-  if (!response.ok) throw new HttpError(502, `Checking ${path} on the instance failed (${response.status}).`);
-  return true;
-}
-
-async function workerHeartbeatAge() {
-  const beat = await readJson('jobs/worker.heartbeat');
-  return beat ? Date.now() / 1000 - beat.time : Infinity;
 }
 
 function parseRequestField(raw) {
@@ -142,16 +89,10 @@ async function createGeneration(req) {
 async function queueJob(request, files) {
   const jobId = randomUUID();
   const createdAt = new Date().toISOString();
-  const dir = `jobs/${jobId}`;
-  await putContents(dir, { type: 'directory' });
-  for (const [field, file] of Object.entries(files)) {
-    const name = `${field}.${file.name.split('.').pop().toLowerCase()}`;
-    const content = Buffer.from(await file.arrayBuffer()).toString('base64');
-    await putContents(`${dir}/${name}`, { type: 'file', format: 'base64', content });
-    request[field] = name;
-  }
-  // request.json is the worker's "ready" marker, so it goes last.
-  await putContents(`${dir}/request.json`, { type: 'file', format: 'text', content: JSON.stringify({ ...request, jobId, createdAt }) });
+  const uploads = {};
+  for (const [field, file] of Object.entries(files))
+    uploads[field] = { name: `${field}.${file.name.split('.').pop().toLowerCase()}`, bytes: await file.arrayBuffer() };
+  await instance.submitJob(jobId, { ...request, jobId, createdAt }, uploads);
   console.log(`[relay] queued ${jobId} (${request.mode}) ${JSON.stringify(request.prompt.slice(0, 60))}`);
   return { jobId, createdAt };
 }
@@ -186,11 +127,11 @@ const requestCache = new Map(); // jobId -> request.json (immutable once written
 
 async function getTimeline(jobId) {
   const job = await getGeneration(jobId);
-  if (!requestCache.has(jobId)) requestCache.set(jobId, await readJson(`jobs/${jobId}/request.json`));
+  if (!requestCache.has(jobId)) requestCache.set(jobId, await instance.readRequest(jobId));
   const image = requestCache.get(jobId)?.image;
   return {
     ...job,
-    shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output }],
+    shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output, thumbnail: job.finalFrameUrl }],
     ...(image && { beforeImageUrl: `/api/outputs/${jobId}/${image}` }),
   };
 }
@@ -205,7 +146,7 @@ async function getWall() {
   if (wallCache && Date.now() - wallCache.at < 15_000) return wallCache.body;
   const entries = (await readWallIndex()).slice(0, 48);
   const jobs = await Promise.all(entries.map(entry => getGeneration(entry.id).catch(() => null)));
-  const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url }] : []);
+  const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url, ...(jobs[i].finalFrameUrl && { thumbnail: jobs[i].finalFrameUrl }) }] : []);
   wallCache = { at: Date.now(), body };
   return body;
 }
@@ -216,22 +157,28 @@ async function getGeneration(jobId) {
   const cached = statusCache.get(jobId);
   // Finished jobs never change; others are re-read at most every 2 s.
   if (cached && (['completed', 'failed'].includes(cached.body.status) || Date.now() - cached.at < 2000)) return cached.body;
-  const status = await readJson(`jobs/${jobId}/status.json`);
+  const status = await instance.readStatus(jobId);
   let body;
   if (status) {
     body = { jobId, status: status.status, progress: status.progress };
     if (status.error) body.error = status.error;
     if (status.status === 'completed' && status.output) {
-      const { seed, prompt, ...output } = status.output;
+      const { seed, prompt, finalFrame, ...output } = status.output;
       body.output = { ...output, url: `/api/outputs/${jobId}.mp4`, filename: `knight-studio-${jobId.slice(0, 8)}.mp4` };
+      cacheOutput(jobId, 'out.mp4');
+      // The clip's last frame (last.png); jobs from before the worker wrote it have none.
+      if (finalFrame === 'last.png') {
+        body.finalFrameUrl = `/api/outputs/${jobId}/last.png`;
+        cacheOutput(jobId, 'last.png');
+      }
     }
   } else {
-    if (!(await exists(`jobs/${jobId}/request.json`))) throw new HttpError(404, 'Unknown job. It may have expired; generate again.');
-    const age = await workerHeartbeatAge();
+    if (!(await instance.jobExists(jobId))) throw new HttpError(404, 'Unknown job. It may have expired; generate again.');
+    const age = await instance.heartbeatAge();
     if (age > HEARTBEAT_STALE_S) {
       body = { jobId, status: 'failed', error: 'The GPU worker is offline. Start worker_k6.py on the instance, then generate again.' };
       // Persist it so a worker that comes back later doesn't spend GPU time on a job nobody is watching.
-      await putContents(`jobs/${jobId}/status.json`, { type: 'file', format: 'text', content: JSON.stringify(body) });
+      await instance.writeStatus(jobId, body);
     } else {
       body = { jobId, status: 'queued', progress: 0 };
     }
@@ -241,13 +188,51 @@ async function getGeneration(jobId) {
   return body;
 }
 
+const CACHED_FILES = ['out.mp4', 'last.png'];
+const cachedPath = (jobId, file) => new URL(file === 'out.mp4' ? `${jobId}.mp4` : `${jobId}-${file}`, CACHE_DIR);
+const caching = new Set();
+
+// Copies a finished clip's files to relay/cache/ in the background; until they land, they stream from the instance.
+function cacheOutput(jobId, file) {
+  const path = cachedPath(jobId, file);
+  if (caching.has(path.href) || existsSync(path)) return;
+  caching.add(path.href);
+  (async () => {
+    const response = await instance.openFile(jobId, file);
+    await mkdir(CACHE_DIR, { recursive: true });
+    const tmp = new URL(`${path.href}.tmp`);
+    await writeFile(tmp, Readable.fromWeb(response.body));
+    await rename(tmp, path);
+  })().catch(error => console.error('[relay] caching', jobId, file, error.message)).finally(() => caching.delete(path.href));
+}
+
+// Serves a cached file with Range support (browsers seek <video> with Range requests).
+async function sendCached(req, res, path, contentType) {
+  const { size } = await stat(path);
+  const headers = { 'Content-Type': contentType, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
+  const match = req.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+  let start = 0, end = size - 1, status = 200;
+  if (match && (match[1] || match[2])) {
+    start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+    end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+    if (start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+      return res.end();
+    }
+    status = 206;
+    headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
+  }
+  headers['Content-Length'] = end - start + 1;
+  res.writeHead(status, headers);
+  pipeline(createReadStream(path, { start, end }), res, () => {});
+}
+
 const CONTENT_TYPES = { mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
 async function streamOutput(req, res, jobId, file) {
-  const range = req.headers.range;
-  const response = await upstream(`/files/jobs/${jobId}/${file}`, { stream: true, headers: range ? { Range: range } : {} });
-  if (response.status === 404) throw new HttpError(404, 'Output not found.');
-  if (!response.ok) throw new HttpError(502, `Fetching ${file} failed (${response.status}).`);
+  if (CACHED_FILES.includes(file) && existsSync(cachedPath(jobId, file)))
+    return sendCached(req, res, cachedPath(jobId, file), CONTENT_TYPES[file.split('.').pop()]);
+  const response = await instance.openFile(jobId, file, req.headers.range);
   const headers = { 'Content-Type': CONTENT_TYPES[file.split('.').pop()], 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
   for (const name of ['content-length', 'content-range']) {
     const value = response.headers.get(name);
@@ -258,6 +243,16 @@ async function streamOutput(req, res, jobId, file) {
   pipeline(Readable.fromWeb(response.body), res, error => {
     if (error && error.code !== 'ERR_STREAM_PREMATURE_CLOSE') console.error('[relay] stream', jobId, file, error.message);
   });
+}
+
+// Tells "the gateway won't let us in" apart from "the worker isn't running".
+async function getHealth() {
+  try {
+    const age = await instance.heartbeatAge();
+    return { relay: 'ok', instance: 'ok', worker: age <= HEARTBEAT_STALE_S ? 'online' : 'offline', heartbeatAgeSeconds: Number.isFinite(age) ? Math.round(age) : null };
+  } catch (error) {
+    return { relay: 'ok', instance: instance.authState() === 'expired' ? 'login-expired' : 'unreachable', worker: 'unknown', error: error.message };
+  }
 }
 
 function sendJson(res, status, body) {
@@ -277,8 +272,8 @@ createServer(async (req, res) => {
     } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\.mp4$/))) {
       if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
       await streamOutput(req, res, match[1], 'out.mp4');
-    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\/(image\.(?:png|jpe?g|webp))$/))) {
-      // The uploaded source photo, for the Time Machine before/after view.
+    } else if (req.method === 'GET' && (match = pathname.match(/^\/api\/outputs\/([^/]+)\/(image\.(?:png|jpe?g|webp)|last\.png)$/))) {
+      // The uploaded source photo and the clip's last frame, for the Time Machine before/after view.
       if (!JOB_ID.test(match[1])) throw new HttpError(404, 'Output not found.');
       await streamOutput(req, res, match[1], match[2]);
     } else if (req.method === 'POST' && pathname === '/api/timelines') {
@@ -289,8 +284,7 @@ createServer(async (req, res) => {
     } else if (req.method === 'GET' && pathname === '/api/wall') {
       sendJson(res, 200, await getWall());
     } else if (req.method === 'GET' && pathname === '/api/health') {
-      const age = await workerHeartbeatAge();
-      sendJson(res, 200, { relay: 'ok', worker: age <= HEARTBEAT_STALE_S ? 'online' : 'offline', heartbeatAgeSeconds: Number.isFinite(age) ? Math.round(age) : null });
+      sendJson(res, 200, await getHealth());
     } else {
       throw new HttpError(404, 'Not found.');
     }
@@ -300,4 +294,4 @@ createServer(async (req, res) => {
     if (!res.headersSent) sendJson(res, status, { error: error.message });
     else res.destroy();
   }
-}).listen(PORT, '127.0.0.1', () => console.log(`[relay] http://127.0.0.1:${PORT}/api -> ${UPSTREAM}`));
+}).listen(PORT, '127.0.0.1', () => console.log(`[relay] http://127.0.0.1:${PORT}/api -> ${instance.describe()}`));
