@@ -7,6 +7,8 @@ import { CampusBasemap } from './CampusBasemap';
 interface Props { selected?: string; onSelect: (id: string) => void; disabled: boolean }
 export function CampusMap({ selected, onSelect, disabled }: Props) {
   const [view, setView] = useState(DEFAULT_MAP_VIEW);
+  // The intro heading fades out once the visitor first pans, zooms, or picks a waypoint.
+  const [touched, setTouched] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const [worldSize, setWorldSize] = useState({ ...MAP_SIZE, viewportWidth: MAP_SIZE.width, viewportHeight: MAP_SIZE.height });
   const coverage = { width: worldSize.viewportWidth / worldSize.width, height: worldSize.viewportHeight / worldSize.height };
@@ -34,6 +36,7 @@ export function CampusMap({ selected, onSelect, disabled }: Props) {
       // Preserve page scrolling. Ctrl/Command-wheel and trackpad pinch zoom the map.
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
+      setTouched(true);
       setView(value => constrainMap({ ...value, zoom: value.zoom - event.deltaY * .005 }, coverage));
     };
     element.addEventListener('wheel', wheel, { passive: false });
@@ -45,7 +48,8 @@ export function CampusMap({ selected, onSelect, disabled }: Props) {
     else setView(DEFAULT_MAP_VIEW);
   }
   function stopPointer(id: number) { pointers.current.delete(id); gesture.current = undefined; }
-  return <section className="campus-map" aria-labelledby="map-title">
+  return <section className="campus-map" aria-labelledby="map-title" onPointerDownCapture={() => setTouched(true)}
+    onKeyDownCapture={event => { if (!['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'Escape'].includes(event.key)) setTouched(true); }}>
     <div className="map-viewport" ref={viewport} tabIndex={0} role="region" aria-label="Interactive campus map" aria-describedby="map-help"
       onKeyDown={event => {
         if (event.target !== event.currentTarget) return;
@@ -84,7 +88,7 @@ export function CampusMap({ selected, onSelect, disabled }: Props) {
         </div>
       </div>
     </div>
-    <div className="map-heading"><span className="map-overline">UCF / ORLANDO, FL</span><h1 id="map-title">Same campus.<br /><span>Different timeline.</span></h1><p>Choose a waypoint. See where time takes it.</p></div>
+    <div className={`map-heading${touched ? ' dismissed' : ''}`}><span className="map-overline">UCF / ORLANDO, FL</span><h1 id="map-title">Same campus.<br /><span>Different timeline.</span></h1><p>Choose a waypoint. See where time takes it.</p></div>
     <label className="map-place-select"><MapPin size={16} aria-hidden="true" /><span className="sr-only">Choose a campus waypoint</span><select value={selected || ''} disabled={disabled} onChange={event => { if (event.target.value) onSelect(event.target.value); }}><option value="">Campus · Choose a place</option>{PLACES.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}</select></label>
     <div className="map-tools" role="group" aria-label="Map controls"><button type="button" aria-label="Zoom in" onClick={() => zoom(.25)} disabled={view.zoom >= 3}><Plus size={19} /></button><button type="button" aria-label="Zoom out" onClick={() => zoom(-.25)} disabled={view.zoom <= 1}><Minus size={19} /></button><button type="button" aria-label="Reset map view" onClick={() => setView(DEFAULT_MAP_VIEW)}><RotateCcw size={17} /></button><button type="button" aria-label="Center selected waypoint" onClick={locate} disabled={!selected}><Crosshair size={18} /></button></div>
     <div className="map-compass" aria-label="North is up"><span>N</span><span aria-hidden="true">↑</span></div>

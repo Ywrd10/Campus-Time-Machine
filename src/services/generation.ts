@@ -26,7 +26,7 @@ export class MockGenerationService implements GenerationService {
     return {
       jobId, status: 'completed', progress: 100,
       // Actual sample metadata, independent of requested settings.
-      output: { url: '/demo.mp4', filename: 'knight-studio-demo.mp4', mimeType: 'video/mp4', width: 1280, height: 720, fps: 24, durationSeconds: 6, isMock: true },
+      output: { url: '/demo.mp4', filename: 'campus-time-machine-demo.mp4', mimeType: 'video/mp4', width: 1280, height: 720, fps: 24, durationSeconds: 6, isMock: true },
     };
   }
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowRight, Clock3, Grid2X2, MapPin, Orbit, RotateCcw, ScanLine, TriangleAlert, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, Clock3, History, Grid2X2, MapPin, Orbit, RotateCcw, ScanLine, TriangleAlert, X } from 'lucide-react';
 import { isMockProvider } from '../services/generation';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import { PlacePicker } from './PlacePicker';
-import { MomentPicker } from './MomentPicker';
+import { MOMENT_ICONS, MomentPicker } from './MomentPicker';
 import { TimelineProgress } from './TimelineProgress';
 import { ArrivalView } from './ArrivalView';
 import { CampusScene } from './CampusScene';
@@ -19,6 +19,9 @@ import { JourneyLoading } from './JourneyLoading';
 function scrollTo(element: HTMLElement | null) {
   element?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
 }
+// Places that take "the" mid-sentence ("A new time for the Library").
+const THE_PLACES = new Set(['library', 'reflecting-pond', 'john-t-washington', 'student-union', 'cypress-dome', 'memory-mall']);
+
 export function TimeMachine({ active }: { active: boolean }) {
   const [placeId, setPlaceId] = useState<string>();
   const [viewId, setViewId] = useState<string>();
@@ -40,6 +43,7 @@ export function TimeMachine({ active }: { active: boolean }) {
   const selectedId = restoredPlace || placeId;
   const place = PLACES.find(place => place.id === selectedId) || (ticket ? PLACES[0] : undefined);
   const moment = MOMENTS.find(moment => moment.id === (ticket?.moment || momentId)) || MOMENTS[0];
+  const MomentIcon = MOMENT_ICONS[moment.id] || History;
   const preset = journeyQuality(ticket?.quality || quality)!;
   const view = place && placeView(place, ticket ? ticket.view : viewId);
   const source = photoUrl || view?.photo;
@@ -72,18 +76,18 @@ export function TimeMachine({ active }: { active: boolean }) {
   function showWall() { setWallRevision(value => value + 1); scrollTo(wallArea.current); }
   return <div className="time-workspace map-workspace">
     <div ref={mapArea} className="map-area"><CampusMap selected={place?.id} onSelect={selectPlace} disabled={busy} />
-      <div className="map-archive-shortcut"><button type="button" onClick={showWall}><Grid2X2 size={17} /><span>Journey Wall<small>Explore saved arrivals</small></span><ArrowDown size={16} /></button><span>{PLACES.length} WAYPOINTS / {MOMENTS.length} MOMENTS</span></div>
+      <div className="map-archive-shortcut"><button type="button" onClick={showWall}><Grid2X2 size={17} /><span>Journey Wall<small>Explore saved arrivals</small></span><ArrowDown size={16} /></button></div>
     </div>
     {place ? <section ref={configuration} className="waypoint-workspace" aria-label={`${place.name} journey options`}>
-      <div className="waypoint-section-heading"><div><p className="eyebrow"><span /> YOUR NEXT DEPARTURE</p><h2>A new time for <span>{place.name}.</span></h2></div><button className="secondary-button" type="button" onClick={closePlace} disabled={busy}><X size={14} /> Back to map</button></div>
+      <div className="waypoint-section-heading"><div><h2>A new time for {THE_PLACES.has(place.id) ? 'the ' : ''}<span>{place.name}.</span></h2><p className="time-subtitle">Your next departure.</p></div><button className="secondary-button" type="button" onClick={closePlace} disabled={busy}><X size={14} /> Back to map</button></div>
       <div className="time-grid">
         <div className="journey-controls" aria-label="Journey configuration">
           <PlacePicker place={place} view={view} onView={id => { setViewId(id); setImage(undefined); setValidation(undefined); }} image={image} onImage={file => { setImage(file); setValidation(undefined); }} disabled={locked} />
           <MomentPicker selected={ticket?.moment || momentId} onSelect={setMomentId} disabled={locked} kind={place.kind} />
           <section className="journey-section length-section" aria-labelledby="length-heading">
-            <div className="section-caption"><span className="step-number">03</span><h2 id="length-heading">Set your journey</h2><Clock3 size={15} aria-hidden="true" /></div>
+            <div className="section-caption"><span className="step-number">03</span><h2 id="length-heading">Video quality</h2><Clock3 size={15} aria-hidden="true" /></div>
             <fieldset className="quality-fieldset" disabled={locked}>
-              <legend>Video quality</legend>
+              <legend className="sr-only">Video quality</legend>
               <div className="quality-options">{JOURNEY_QUALITIES.map(option => <label key={option.id} className={`quality-option ${preset.id === option.id ? 'selected' : ''}`}>
                 <input type="radio" name="journey-quality" value={option.id} checked={preset.id === option.id} onChange={() => setQuality(option.id)} />
                 <span><strong>{option.label}</strong><small>{option.resolution}</small></span>
@@ -99,9 +103,8 @@ export function TimeMachine({ active }: { active: boolean }) {
         </div>
         <section className={`time-preview ${busy ? 'is-traveling' : ''}`} aria-labelledby="destination-heading" aria-busy={busy}>
           <div className="preview-caption"><span><span className="live-dot" />{arrived ? 'ARRIVAL CONFIRMED' : busy ? 'JOURNEY IN PROGRESS' : 'YOUR TIMELINE'}</span><span>{isMockProvider ? 'DEMO / 16:9' : 'IMAGE → VIDEO'}</span></div>
-          <div className="destination-row"><div><span className="small-label">SELECTED PLACE</span><h2 id="destination-heading">{ticket?.placeName || place.name}</h2></div><MapPin size={18} /></div>
-          <div className="time-readouts"><div><span>DEPARTURE</span><strong>NOW</strong></div><div className="travel-connector"><span /><ArrowRight size={18} /><span /></div><div className="destination-readout"><span>DESTINATION</span><strong>{moment.destination}</strong></div></div>
-          {arrived && journey.job && ticket ? <ArrivalView key={journey.job.jobId} job={journey.job} ticket={ticket} beforeUrl={source} kind={place.kind} onReset={reset} onWall={showWall} onSaved={() => setWallRevision(value => value + 1)} />
+          <div className="destination-row"><div><span className="small-label">SELECTED PLACE</span><h2 id="destination-heading">{ticket?.placeName || place.name}</h2></div><span className="moment-chip"><MomentIcon size={14} aria-hidden="true" />{moment.label}</span></div>
+          {arrived && journey.job && ticket ? <ArrivalView key={journey.job.jobId} job={journey.job} ticket={ticket} onReset={reset} onWall={showWall} onSaved={() => setWallRevision(value => value + 1)} />
             : <div className="departure-scene">{source ? <img src={source} alt={`${place.name} source photo`} /> : <CampusScene kind={place.kind} />}<div className="viewfinder"><span /><span /><span /><span /></div><div className="scene-tag">{source ? 'SOURCE PHOTO' : 'CONCEPT ILLUSTRATION · ADD A CAMPUS PHOTO'}</div>
               {busy ? <JourneyLoading job={journey.job} source={source} demo={isMockProvider} onStop={reset} />
                 : journey.status === 'failed' ? <div className="travel-overlay failure-overlay"><TriangleAlert size={30} /><h3>Journey interrupted</h3><p role="alert">{journey.error}</p><button className="secondary-button" type="button" onClick={travel}><RotateCcw size={14} /> Retry journey</button><button className="text-button" type="button" onClick={reset}>Choose another destination</button></div>
@@ -114,6 +117,5 @@ export function TimeMachine({ active }: { active: boolean }) {
       </div>
     </section> : <div className="map-start-note"><MapPin size={18} /><span><strong>Your next story starts with a place.</strong> Choose a pin on the map to unlock its moment options.</span></div>}
     <div ref={wallArea} className="inline-wall"><Wall active={active} onTravel={() => scrollTo(mapArea.current)} refreshKey={wallRevision} /></div>
-    <footer className="time-footer"><span>KNIGHT HACKS IX <span>/</span> CAMPUS TIME MACHINE</span><span>{isMockProvider ? 'INTERFACE DEMO' : 'AMD RADEON CLOUD'} <span>·</span> KANDINSKY 6 LITE</span></footer>
   </div>;
 }

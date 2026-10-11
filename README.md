@@ -15,7 +15,6 @@ Campus Time Machine turns familiar University of Central Florida locations into 
 - **Seven imagined moments:** The year 2125, Homecoming, Hurricane landfall, Rocket on the horizon, Wild Florida, Charge of the Knights, and Snow day in Orlando.
 - **Three quality presets:** Quick, Standard, and High Detail, validated against settings supported by our AMD worker.
 - **An asynchronous generation flow:** queue and rendering feedback, job recovery after reload, readable failures, and MP4 playback and download.
-- **Before/after comparison:** the source photo alongside the generated clip's final frame.
 - **A shared Journey Wall:** finished videos, source photos, final frames, and journey records archived in a public Hugging Face Storage Bucket.
 
 The creative experience is grounded in a place you recognize: the input is a photograph of that location, and the moment prompt describes motion within it. These are AI-imagined scenes, not historical reconstructions or forecasts.

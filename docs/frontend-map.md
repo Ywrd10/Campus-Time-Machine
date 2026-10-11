@@ -19,7 +19,7 @@ Waypoint anchors come from [UCF's official locations registry](https://www.map.u
 
 The map is separate from the generation source image. Real generation uses the team's preset photo of the selected place (one or more views each, `public/places/`) or an uploaded photo. An uploaded photo uses the existing multipart `image` field rather than adding an unsupported field to the relay contract. The local ticket keeps the waypoint display name for reload recovery. The relay currently labels uploaded-photo Wall entries “Your campus photo”; it needs a future contract change to carry the waypoint name to its server Wall.
 
-Both providers offer Snapshot only. Quality IDs are mapped by the relay to tested worker settings; see [api.md](api.md). The before/after comparison uses the relay's `finalFrameUrl` (the clip's last frame). Demo outputs stay explicitly labeled as fixed sample MP4s.
+Both providers offer Snapshot only. Quality IDs are mapped by the relay to tested worker settings; see [api.md](api.md). The arrival video uses the relay's `finalFrameUrl` (the clip's last frame) as its poster. Demo outputs stay explicitly labeled as fixed sample MP4s.
 
 ## Verification
 

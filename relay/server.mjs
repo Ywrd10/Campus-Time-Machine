@@ -280,7 +280,7 @@ async function getGeneration(jobId) {
     if (status.error) body.error = status.error;
     if (status.status === 'completed' && status.output) {
       const { seed, prompt, finalFrame, ...output } = status.output;
-      body.output = { ...output, url: `/api/outputs/${jobId}.mp4`, filename: `knight-studio-${jobId.slice(0, 8)}.mp4` };
+      body.output = { ...output, url: `/api/outputs/${jobId}.mp4`, filename: `campus-time-machine-${jobId.slice(0, 8)}.mp4` };
       cacheOutput(jobId, 'out.mp4');
       // The clip's last frame (last.png); jobs from before the worker wrote it have none.
       if (finalFrame === 'last.png') {

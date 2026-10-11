@@ -56,7 +56,7 @@ Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of 
 - `GET /api/timelines/:id`: the job status/output contract above plus `shots` (one for Snapshot, three for Film).
   Each shot has `status`, optional `phase` (`now` / `shift` / `arrive`), optional numeric `progress`, optional
   `output`, and optional `thumbnail`. Phases are inferred by order if omitted. `beforeImageUrl` and
-  `finalFrameUrl` are optional top-level image URLs for the before/after comparison.
+  `finalFrameUrl` are optional top-level image URLs (the source photo and the clip's last frame; the UI uses the latter as the video poster).
 - `GET /api/wall`: an array of `{ "id", "place", "moment", "thumbnail", "url" }` for completed journeys.
   `moment` uses the IDs in `src/timeMachine/moments.ts`; `place` is a display name. Completed real jobs appear
   on the Wall automatically; the frontend has no publishing endpoint.

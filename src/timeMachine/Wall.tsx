@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowRight, Grid2X2, LoaderCircle, Play, RefreshCw, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, Grid2X2, History, LoaderCircle, Play, RefreshCw, X } from 'lucide-react';
 import { downloadOutput, isMockProvider } from '../services/generation';
 import { timelineService } from '../services/timeline';
 import { MOMENTS } from './moments';
+import { MOMENT_ICONS } from './MomentPicker';
 import type { WallEntry } from './types';
 
 export function Wall({ active, onTravel, refreshKey = 0 }: { active: boolean; onTravel: () => void; refreshKey?: number }) {
@@ -36,18 +37,22 @@ export function Wall({ active, onTravel, refreshKey = 0 }: { active: boolean; on
   }
   const visible = entries.filter(entry => filter === 'all' || entry.moment === filter);
   const momentLabel = (id: string) => MOMENTS.find(moment => moment.id === id)?.label || id;
+  const momentBadge = (id: string) => {
+    const Icon = MOMENT_ICONS[id] || History;
+    return <span className="wall-moment" title={momentLabel(id)}><Icon size={15} aria-hidden="true" /><span className="sr-only">{momentLabel(id)}</span></span>;
+  };
   return <section className="wall-workspace" aria-labelledby="wall-heading">
-    <div className="wall-heading-row"><div><p className="eyebrow"><span /> ACROSS CAMPUS, ACROSS TIME</p><h2 id="wall-heading">The Journey Wall<span className="title-period">.</span></h2><p className="time-subtitle">{isMockProvider ? 'Your saved demo journeys, stored in this browser.' : 'Completed journeys shared by the timeline relay.'}</p></div>
+    <div className="wall-heading-row"><div><h2 id="wall-heading">The Journey Wall<span className="title-period">.</span></h2><p className="time-subtitle">{isMockProvider ? 'Your saved demo journeys, stored in this browser.' : 'Completed journeys shared by the timeline relay.'}</p></div>
       <button type="button" className="secondary-button" onClick={() => setRefresh(value => value + 1)} disabled={loading}><RefreshCw size={14} /> Refresh</button></div>
     <div className="wall-toolbar"><span>{entries.length} {entries.length === 1 ? 'journey' : 'journeys'}</span><label>Moment<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All moments</option>{MOMENTS.map(moment => <option key={moment.id} value={moment.id}>{moment.label}</option>)}</select></label></div>
     {loading ? <div className="wall-empty"><LoaderCircle size={26} className="animate-spin" /><p>Loading journeys…</p></div>
       : error ? <div className="wall-empty"><p className="field-error" role="alert">{error}</p><button className="secondary-button" onClick={() => setRefresh(value => value + 1)}>Try again</button></div>
         : visible.length ? <div className="wall-grid">{visible.map(entry => <button className="wall-card" type="button" key={entry.id} onClick={() => setSelected(entry)}>
-          <div className="wall-thumbnail">{entry.thumbnail ? <img src={entry.thumbnail} alt="" /> : <Grid2X2 size={32} />}<span className="wall-play"><Play size={20} /></span>{entry.isMock && <small>DEMO SAMPLE</small>}</div><div><span className="small-label">{momentLabel(entry.moment)}</span><h2>{entry.place}</h2><span className="wall-open">Play journey <ArrowRight size={13} /></span></div>
+          <div className="wall-thumbnail">{entry.thumbnail ? <img src={entry.thumbnail} alt="" /> : <Grid2X2 size={32} />}<span className="wall-play"><Play size={20} /></span>{entry.isMock && <small>DEMO SAMPLE</small>}</div><div>{momentBadge(entry.moment)}<h2>{entry.place}</h2><span className="wall-open">Play journey <ArrowRight size={13} /></span></div>
         </button>)}</div>
           : <div className="wall-empty"><Grid2X2 size={34} strokeWidth={1} /><h2>{entries.length ? 'No journeys for this moment' : 'Every journey starts somewhere'}</h2><p>{entries.length ? 'Choose another moment to explore the archive.' : 'Travel to a moment, then save your arrival here.'}</p><button className="secondary-button" onClick={onTravel}>Start a journey <ArrowRight size={14} /></button></div>}
     {selected && <dialog ref={dialog} className="wall-dialog" aria-labelledby="wall-video-title" onClose={() => setSelected(undefined)}>
-      <div className="wall-dialog-heading"><div><span className="small-label">{momentLabel(selected.moment)}</span><h2 id="wall-video-title">{selected.place}</h2></div><button type="button" className="icon-button" aria-label="Close journey" onClick={() => dialog.current?.close()}><X size={20} /></button></div>
+      <div className="wall-dialog-heading"><div>{momentBadge(selected.moment)}<h2 id="wall-video-title">{selected.place}</h2></div><button type="button" className="icon-button" aria-label="Close journey" onClick={() => dialog.current?.close()}><X size={20} /></button></div>
       <video src={selected.url} controls playsInline preload="metadata" aria-label="Archived journey video" />
       {selected.isMock && <p className="journey-demo-note">Fixed interface sample, not a generated campus journey.</p>}
       <button className="secondary-button" disabled={downloading} type="button" onClick={download}>{downloading ? <LoaderCircle className="animate-spin" size={14} /> : <ArrowDownToLine size={14} />} Download MP4</button>

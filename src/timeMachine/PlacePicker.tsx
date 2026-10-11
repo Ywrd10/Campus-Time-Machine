@@ -11,8 +11,9 @@ export function PlacePicker({ place, view, onView, image, onImage, disabled }: {
   const uploaded = useObjectUrl(image);
   const source = uploaded || view?.photo;
   return <section className="selected-place" aria-labelledby="place-heading">
-    <div className="selected-place-photo">{source ? <img src={source} alt={`${place.name} source photo`} /> : <CampusScene kind={place.kind} />}<span>{uploaded ? 'YOUR PHOTO' : view ? `${view.setting.toUpperCase()} · ${view.label.toUpperCase()}` : 'CONCEPT PREVIEW'}</span></div>
-    <div className="selected-place-heading"><div><p className="eyebrow"><MapPin size={12} /> SELECTED WAYPOINT</p><h2 id="place-heading">{place.name}</h2><p>{place.description}</p></div><span className="location-chip">UCF</span></div>
+    <div className="selected-place-photo">{source ? <img src={source} alt={`${place.name} source photo`} /> : <CampusScene kind={place.kind} />}{/* The view picker below already names multi-view photos. */}
+      {(uploaded || place.views.length < 2) && <span>{uploaded ? 'YOUR PHOTO' : view ? `${view.setting.toUpperCase()} · ${view.label.toUpperCase()}` : 'CONCEPT PREVIEW'}</span>}</div>
+    <div className="selected-place-heading"><h2 id="place-heading">{place.name}</h2><span className="location-chip" aria-hidden="true"><MapPin size={15} /></span></div>
     {place.views.length > 1 && <div className="place-views" role="group" aria-label={`${place.name} photos`}>
       {place.views.map(option => <button key={option.id} type="button" aria-pressed={!uploaded && option.id === view?.id} disabled={disabled} onClick={() => onView(option.id)}>
         <img src={option.photo} alt="" loading="lazy" /><span><small>{option.setting.toUpperCase()}</small>{option.label}</span>

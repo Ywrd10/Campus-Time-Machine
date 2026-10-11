@@ -5,18 +5,18 @@ Notes on the campus workspace, mock (demo) mode, and what the browser stores. Ma
 
 ## Team About page
 
-The header links to Studio (`#studio`) and About (`#about`). About introduces Broc Weselmann and Diego
+The header links to Campus (`#campus`) and About (`#about`). About introduces Broc Weselmann and Diego
 Rolon, links to their supplied LinkedIn profiles, and credits the frontend, AMD/ROCm, and Kandinsky stack
-in a compact “Built with” row near the bottom. The page opens directly with “Meet the team” and the member cards, with no introductory
-hero above them. Direct links, refresh, and browser Back/Forward support the About page. The studio
+in a “Built with” row of chips at the bottom (the page has no footer). The page opens directly with “Meet the team” and the member cards, with no introductory
+hero above them. Direct links, refresh, and browser Back/Forward support the About page. The campus page
 stays mounted while hidden, so uploaded photos, selected settings, and job polling survive navigation;
-the Wall refreshes when the studio becomes active again. Navigation moves focus to the main content and
+the Wall refreshes when the campus page becomes active again. Navigation moves focus to the main content and
 updates the document title. Skip-to-workspace stays on the current page.
 
 `src/about/About.tsx` contains the team details; `src/about/about.css` uses the existing UCF color tokens.
 The member cards use the team's supplied headshots, bundled locally in `src/about/assets/`, and the supplied
-LinkedIn links. Each short bio summarizes the background supplied by the team directly: Broc's Godot,
-Steam release, and web/Linux experience; Diego's UCF degree path and backend/systems/cloud/AI interests.
+LinkedIn links. Each short bio summarizes the background supplied by the team directly: Broc's UCF Computer Science
+focus on machine learning, agentic AI, and mechanistic interpretability; Diego's UCF degree path and backend/systems/cloud/AI interests.
 Individual responsibilities on this hackathon project are not inferred from those backgrounds.
 
 Research references: Knight Hacks VIII projects [KnightSource](https://devpost.com/software/knightsource)
@@ -24,7 +24,7 @@ and [WizzOff](https://devpost.com/software/wizzoff) separate project inspiration
 technology used, and creator credits. The About page keeps creator introductions and technology credits;
 the initial project-story sections were removed following the team's preference for a concise team page.
 
-## Campus studio polish
+## Campus page polish
 
 Free mode is no longer mounted or linked; the campus map and Journey Wall are the single workspace. Film
 is no longer selectable in mock or HTTP mode. Legacy services and saved Film jobs remain readable for compatibility.
@@ -45,7 +45,7 @@ to Standard. Time estimates are approximate and exclude queueing; Quick warns ab
 Generation uses layered photo frames, a scanning light, and a progress bar instead of a spinning wheel.
 Queued, preparing, rendering, and exporting stages use actual worker status/progress. Unknown or mock progress
 stays indeterminate. Reduced motion disables the animation. Stop waiting stops local polling without canceling
-the server job. Playback, download, before/after comparison, and Wall behavior are unchanged.
+the server job. Playback, download, and Wall behavior are unchanged.
 
 ## Campus Time Machine
 
@@ -56,7 +56,6 @@ map. The Journey Wall is on the same page, with playback, filtering, and downloa
 - Ten preset places, each with one or more team photos ("views", Inside/Outside) from `public/places/`
   (`src/timeMachine/places.ts`). The picker under the place photo switches views; the relay receives
   `place` + `view` and uses that photo and its description in the prompt. An upload still overrides both.
-- The before/after slider compares the source photo (`beforeImageUrl`) with the clip's last frame (`finalFrameUrl`).
 - Every moment adds something that moves through the unchanged photo (drones, balloons, a rocket, a knight, an
   alligator, rain, snow) rather than restyling it, and the relay sends the prompts verbatim (no expansion). See the
   comment in `src/timeMachine/moments.ts`. Moment templates avoid official logos, mascots, and seals.
