@@ -1,25 +1,37 @@
 # Frontend behavior
 
-Notes on the two workspaces, mock (demo) mode, and what the browser stores. Map details are in
+Notes on the campus workspace, mock (demo) mode, and what the browser stores. Map details are in
 [frontend-map.md](frontend-map.md).
 
-## Free mode (the studio)
+## Campus studio polish
 
-1. Select an example prompt or write your own.
-2. Keep the defaults: Quality (10 steps), 640×352, 24 FPS, 3 seconds.
-3. Generate, wait for the job to complete, then play and download the MP4.
-4. Switch to Image-to-Video for a source image and an optional motion prompt.
+Free mode is no longer mounted or linked; the campus map and Journey Wall are the single workspace. Film
+is no longer selectable in mock or HTTP mode. Legacy services and saved Film jobs remain readable for compatibility.
+The header credits AMD and keeps the Hugging Face model link visible on mobile.
 
-The studio uses a two-column workspace on desktop and stacked panels on smaller screens. Example prompts are
-collapsible. Download errors and video playback errors are shown separately from generation errors. Switching
-between Free mode and the Time Machine preserves inputs and active polling.
+The interface uses [UCF Black and Bold Gold](https://www.ucf.edu/brand/visual-expression/)
+(`#000000` / `#EDB80D`), with charcoal surfaces, neutral text, and black text on gold primary actions.
+Shared palette tokens live in `src/styles.css`; selected waypoints, quality controls, progress animations,
+and the Journey Wall use them through `timeMachine.css`. The locally exported basemap uses charcoal and
+muted warm lines; its color changes do not alter geographic paths or waypoint coordinates. Semantic error
+colors and source photos stay distinct from the interface palette.
+
+Video quality uses native radios: Quick (352p, 6 steps), Standard (352p, 10 steps, default), High Detail
+(480p, 10 steps). All use 24 FPS and a 3-second Snapshot. The optional `quality` identifier is sent to the
+relay, validated there, and recorded in the local journey ticket for reload recovery. Old tickets default
+to Standard. Time estimates are approximate and exclude queueing; Quick warns about quieter audio.
+
+Generation uses layered photo frames, a scanning light, and a progress bar instead of a spinning wheel.
+Queued, preparing, rendering, and exporting stages use actual worker status/progress. Unknown or mock progress
+stays indeterminate. Reduced motion disables the animation. Stop waiting stops local polling without canceling
+the server job. Playback, download, before/after comparison, and Wall behavior are unchanged.
 
 ## Campus Time Machine
 
 Select a waypoint on the map (or in the place dropdown) to open that place's photo and moment options below the
 map. The Journey Wall is on the same page, with playback, filtering, and downloads.
 
-- In HTTP mode only **Snapshot** is offered: Film needs the worker to chain shots from each previous last frame.
+- Only **Snapshot** is offered, with three tested quality presets.
 - Ten preset places, each with one or more team photos ("views", Inside/Outside) from `public/places/`
   (`src/timeMachine/places.ts`). The picker under the place photo switches views; the relay receives
   `place` + `view` and uses that photo and its description in the prompt. An upload still overrides both.

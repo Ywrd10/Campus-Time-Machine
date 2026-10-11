@@ -67,6 +67,8 @@ describe('Campus timelines', () => {
     expect(body?.get('moment')).toBe('future');
     expect(body?.get('length')).toBe('film');
     expect(body?.has('shots')).toBe(false);
+    await service.submit({ ...request, length: 'snapshot', quality: 'high' });
+    expect(body?.get('quality')).toBe('high');
     await service.submit({ ...request, image: new File(['image'], 'campus.jpg') });
     expect(body?.has('place')).toBe(false);
     expect(body?.get('image')).toBeInstanceOf(File);
@@ -88,6 +90,10 @@ describe('Campus timelines', () => {
     expect(readLocalWall()).toHaveLength(1);
     storeValue(TICKET_KEY, { jobId: 'a', provider: 'mock', placeName: 'Reflecting Pond', ...request });
     expect(readTicket()?.jobId).toBe('a');
+    storeValue(TICKET_KEY, { jobId: 'a', provider: 'mock', placeName: 'Reflecting Pond', ...request, quality: 'high' });
+    expect(readTicket()?.quality).toBe('high');
+    storeValue(TICKET_KEY, { jobId: 'a', provider: 'mock', placeName: 'Reflecting Pond', ...request, quality: '4k' });
+    expect(readTicket()).toBeUndefined();
     storeValue(TICKET_KEY, { jobId: 'a', provider: 'mock', placeName: 'Reflecting Pond', ...request, moment: 'unknown' });
     expect(readTicket()).toBeUndefined();
   });

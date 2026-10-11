@@ -1,5 +1,6 @@
 import type { JobStatusResponse, Mp4Output } from '../lib/types';
 import type { Phase } from './moments';
+import type { JourneyQuality } from './quality';
 
 export type JourneyLength = 'snapshot' | 'film';
 export interface TimelineRequest {
@@ -8,6 +9,7 @@ export interface TimelineRequest {
   image?: File;
   moment: string;
   length: JourneyLength;
+  quality?: JourneyQuality;
 }
 export interface TimelineShot {
   phase: Phase;
@@ -29,6 +31,7 @@ export interface JourneyTicket {
   placeName: string;
   moment: string;
   length: JourneyLength;
+  quality?: JourneyQuality;
 }
 export interface WallEntry {
   id: string;

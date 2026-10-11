@@ -83,6 +83,12 @@ The cost is a second or two of polling latency, which doesn't matter next to a ~
 
 ## Mapping UI presets to what actually runs
 
+The current campus UI has no Free mode or Film selector. Snapshot quality IDs (`quick`, `standard`, `high`)
+come from `src/timeMachine/quality.ts`, shared with the relay. They map to 640×352 / 6 steps, 640×352 / 10 steps,
+and 864×480 / 10 steps respectively, all at 24 FPS for 3 seconds. The relay validates them through the same
+`withPreset` path as the retained legacy `/api/generations` endpoint. Omitting quality preserves Standard.
+No GPU worker changes or restarts are needed.
+
 The relay validates the request against `src/lib/capabilities.ts` and adds `bench: {size: [w, h], steps}` to
 `request.json`. The worker then:
 

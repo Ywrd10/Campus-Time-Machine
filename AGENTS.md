@@ -6,6 +6,14 @@ Hackathon project generating video with synchronized audio (text→video and ima
 (history below). Presentation slot is 6 minutes including Q&A, so a live clip must take well under a minute.
 
 ## Current status (2026-10-10, ~20:30 UTC)
+
+Frontend polish update: the campus map and Journey Wall are now the only mounted workspace; Free mode and
+Film selectors have been removed. Snapshot quality is selectable via `src/timeMachine/quality.ts` (Quick:
+640×352 / 6 steps; Standard default: 640×352 / 10 steps; High Detail: 864×480 / 10 steps; all 24 FPS / 3 s).
+The relay validates this optional `quality` field and forwards the preset to the existing worker. Older
+callers default to Standard. The statements below about the original fixed Snapshot and Free mode describe
+previous integrations; current UI behavior is in `docs/frontend.md` and `docs/api.md`.
+
 - Instance `rgapi-hackathon-22798-4f66cae3` (third one under that id) is up. **`worker_k6.py` is running and idle**
   on `/workspace/k6lite` (`kandinskylab/Kandinsky-6.0-Lite-distill-5s-Diffusers`, 25 GB; downloaded in 6 min).
   LTX-2.5 is not on this instance.
