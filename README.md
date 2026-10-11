@@ -10,6 +10,8 @@ AMD Radeon Cloud instance.
   spot change. Includes a Journey Wall of finished clips.
 Choose a moment and a video quality: Quick (352p), Standard (352p, default), or High Detail (480p).
 Free mode and Film are no longer part of the frontend. The header credits AMD and links to the model on Hugging Face.
+The **About** page introduces the team, links to their LinkedIn profiles, and credits the technology stack. Studio
+navigation preserves your current photo, settings, and any running generation.
 
 ## Run locally
 

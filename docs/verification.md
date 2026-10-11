@@ -1,5 +1,16 @@
 # Verification log
 
+## Team About page (2026-10-10)
+
+- About/Studio navigation, browser Back/Forward, About direct refresh, and keyboard activation of the skip
+  link checked in the browser. Returning to the studio preserves the Reflecting Pond selection, High Detail
+  quality, and the existing completed live MP4. No additional GPU job was submitted for these checks.
+- Desktop (1366×900) and narrow mobile (320×844) layouts checked: team cards and short bios fit without
+  horizontal overflow; the mobile cards stack, and Studio/About plus AMD/Hugging Face credits remain visible.
+- Both LinkedIn destinations match the supplied URLs and use separate tabs with `noopener noreferrer`.
+  The frontend proxy health check reports relay `ok`, instance `ok`, worker `online`.
+- Automated checks: the existing 27 tests and TypeScript/Vite production build pass.
+
 ## Frontend polish (2026-10-10)
 
 - All 27 tests pass and the production build passes. New coverage checks all three quality IDs through the
