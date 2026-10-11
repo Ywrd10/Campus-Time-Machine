@@ -7,7 +7,8 @@ AMD Radeon Cloud instance.
 
 Two workspaces:
 
-- **Campus Time Machine** (default): pick a place on a purple campus map, pick a moment, and watch a photo of that
+- **Campus Time Machine** (default): pick a place on a purple campus map (real OpenStreetMap geometry and official
+  UCF coordinates; see [public/maps/README.md](public/maps/README.md)), pick a moment, and watch a photo of that
   spot change. Includes a Journey Wall of finished clips.
 - **Free mode**: the original studio, with a free-form prompt, text or image input, and preset settings.
 

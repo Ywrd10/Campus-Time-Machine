@@ -174,23 +174,11 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
    wording, 5 s, or the Film chain. Re-check speed/quality numbers above: they were measured with eager embeddings.
 2. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
-3. **Merge main's real campus map (PR #8, `9e9a8f7`) into this branch.** Main replaced hand-placed `{x, y}` pins with
-   `sourceId`s (UCF map location IDs) that `scripts/refresh-campus-map.mjs` resolves into `campusGeography.json` and
-   `mapProjection.ts` projects. Conflicts and resolutions:
-   - `src/timeMachine/mapData.ts`: take main's, then re-add our six places as `{placeId, sourceId, label, number}`
-     entries `05`–`10` *after* the original four (`tests/campusMap.test.tsx` unpacks those four in order).
-   - Add UCF IDs to the script's `ids` list and rerun `node scripts/refresh-campus-map.mjs`: `'40'` Engineering I,
-     `'91'` Engineering II, `'120'` Research I, `'80'` Health Sciences I, `'26'` John T. Washington Center.
-   - **Cypress Dome has no UCF location ID**, and the script throws `Missing official anchor` for unknown IDs, so it
-     needs a hand-written anchor (with a comment saying where it came from). Its boardwalk (`CYP_Inside.jpg`) is the
-     walk between the Student Union and Memory Mall, south of Memory Mall. Not OSM's "Cypress Trail" (way 271298263),
-     which is far too far east.
-   - `docs/api.md`, `docs/frontend.md`: keep ours (main still says preset places have no photos and lacks `view`).
-     `README.md`: take main's (the conflict is just two copies of the "Slim README" commit).
-   - Afterwards: Engineering I and II land ~40 px apart at zoom 1, so their labels likely overlap. Offset them via
-     main's per-pin `waypoint-<placeId>` class. Optionally add the new buildings' OSM way IDs to `LANDMARK_IDS` and the
-     script's `landmarks` filter for outlines. Update main's `docs/frontend-map.md` (it lists only four places), then
-     `npx tsc -b && npx vitest run`.
+3. ~~Merge main's real campus map~~ (done 2026-10-11 on `docs-cleanup`): ten pins anchored by UCF IDs, Cypress Dome
+   hand-anchored to its boardwalk (OSM way 334887933) in `scripts/refresh-campus-map.mjs`, side labels for crowded
+   pins in `timeMachine.css`. Main's README was **not** taken: PR #8 re-added the old long README with stale claims;
+   ours (slim) was kept with a map link. On a 390 px phone, the Health Sciences I / Engineering II labels run past
+   the right edge until panned.
 4. **Time Machine:** worker-side Film chaining (last frame → next
    shot, stitch with PyAV) and a `finalFrameUrl` for the before/after slider.
 5. Decide the project angle — the model's odd physics (balls floating off tables, duplicating) could anchor a
