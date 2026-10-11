@@ -147,16 +147,24 @@ export function createJupyterTransport(env) {
     const xsrf = jar.get('_xsrf');
     const headers = { Cookie: jar.header(url), Origin: new URL(url).origin, ...(xsrf && { 'X-XSRFToken': xsrf }), ...init.headers };
     let response;
-    try {
-      const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(new Error('timed out')), 60_000);
+    // Campus Wi-Fi DNS fails now and then (EAI_AGAIN). Nothing was sent yet, so retrying is safe even for writes.
+    for (let attempt = 1; ; attempt++) {
       try {
-        response = await fetch(url, { ...init, headers, redirect: 'manual', signal: abort.signal });
-      } finally {
-        if (stream) clearTimeout(timer);
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(new Error('timed out')), 60_000);
+        try {
+          response = await fetch(url, { ...init, headers, redirect: 'manual', signal: abort.signal });
+        } finally {
+          if (stream) clearTimeout(timer);
+        }
+        break;
+      } catch (error) {
+        if (error.cause?.code === 'EAI_AGAIN' && attempt < 4) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+        throw new HttpError(502, `Can't reach the Jupyter instance: ${error.cause?.code || error.message}`);
       }
-    } catch (error) {
-      throw new HttpError(502, `Can't reach the Jupyter instance: ${error.cause?.code || error.message}`);
     }
     for (const header of response.headers.getSetCookie()) jar.set(url, header);
     // The gateway answers a missing or expired cookie with 403 or a redirect to the dashboard.
