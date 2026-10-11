@@ -110,7 +110,10 @@ export class HttpTimelineService implements TimelineService {
     if (error) throw new Error(error);
     const body = new FormData();
     if (request.image) body.set('image', request.image);
-    else if (request.place) body.set('place', request.place);
+    else if (request.place) {
+      body.set('place', request.place);
+      if (request.view) body.set('view', request.view);
+    }
     body.set('moment', request.moment);
     body.set('length', request.length);
     // The relay owns prompt templates, shot durations, and worker configuration.

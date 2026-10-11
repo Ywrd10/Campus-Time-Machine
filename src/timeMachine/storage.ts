@@ -21,7 +21,8 @@ export function readTicket(): JourneyTicket | undefined {
   if (typeof ticket.jobId !== 'string' || !ticket.jobId || !['mock', 'http'].includes(String(ticket.provider)) || typeof ticket.placeName !== 'string' ||
       !MOMENTS.some(moment => moment.id === ticket.moment) ||
       !['snapshot', 'film'].includes(String(ticket.length)) ||
-      (ticket.place !== undefined && !PLACES.some(place => place.id === ticket.place))) return;
+      (ticket.place !== undefined && !PLACES.some(place => place.id === ticket.place)) ||
+      (ticket.view !== undefined && typeof ticket.view !== 'string')) return;
   return ticket as JourneyTicket;
 }
 export function safeMediaUrl(value: unknown): value is string {

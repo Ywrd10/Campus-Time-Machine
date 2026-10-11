@@ -20,8 +20,9 @@ Select a waypoint on the map (or in the place dropdown) to open that place's pho
 map. The Journey Wall is on the same page, with playback, filtering, and downloads.
 
 - In HTTP mode only **Snapshot** is offered: Film needs the worker to chain shots from each previous last frame.
-- Preset places have no photos yet (`public/places/README.md`, `src/timeMachine/places.ts`), so real journeys
-  need an uploaded photo.
+- Ten preset places, each with one or more team photos ("views", Inside/Outside) from `public/places/`
+  (`src/timeMachine/places.ts`). The picker under the place photo switches views; the relay receives
+  `place` + `view` and uses that photo and its description in the prompt. An upload still overrides both.
 - The before/after slider compares the source photo (`beforeImageUrl`) with the clip's last frame (`finalFrameUrl`).
 - Opening day uses October 7, 1968, verified against
   [UCF University Archives](https://library.ucf.edu/about/departments/special-collections-university-archives/university-history/).

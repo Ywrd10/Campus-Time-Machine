@@ -30,8 +30,9 @@ Hackathon project generating video with synchronized audio (text→video and ima
   The relay imports that file (Node ≥ 22.18 type stripping) and forwards `bench: {size, steps}` to the worker.
 - Teammate's **Campus Time Machine** view (`src/timeMachine/`) is served by the relay: `/api/timelines` (Snapshot
   only: one i2v shot, 640×352, 3 s, 10 steps, prompt from `moments.ts`), `/api/wall` (index in `relay/wall.json`).
-  Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Preset places have no photos
-  yet, so real journeys need an uploaded photo.
+  Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Ten preset places with team
+  photos (`public/places/<ABBR>_<Inside|Outside>[n].jpg`, several views per place, picked via `view`). All are
+  portrait 3:4, so the 640×352 Snapshot center-crops them.
 - **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
   plays in the browser. Image→video through the relay works (2560×1707 photo, 52 s) with the resize fix deployed.
   Time Machine Snapshot verified live (2026-10-10 ~22:57 UTC): uploaded photo, `snow`, 52.6 s gen, peak 28.7 GB;
@@ -76,7 +77,7 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   return a readable failure.
 - `bench`: `size` (multiples of 16), `frames`, `steps`, `enhance`. The relay sets `size` and `steps` from the UI preset;
   `frames` and `enhance` are hand-written-job only.
-- Worker env: `STEPS`, `MAX_FRAMES`, `MAX_IMAGE_SIDE`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default eager).
+- Worker env: `STEPS`, `MAX_FRAMES`, `MAX_IMAGE_SIDE`, `ENHANCE`, `OFFLOAD` (CPU offload fallback), `VAE_TILING` (default 1), `TE_ATTN` (default sdpa, pinned to the math kernel).
 - `status.json`: `{status, progress, error?, output?}`; `output` has width/height/fps/durationSeconds/seed/prompt
   (expanded), steps, generateSeconds, peakVramGB, and `finalFrame: "last.png"` (the clip's last frame, saved next
   to `out.mp4`). The relay turns that into `finalFrameUrl` (`/api/outputs/<id>/last.png`) on generation and
@@ -87,9 +88,15 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
 - **Masked SDPA is wrong on this ROCm stack.** Unmasked `F.scaled_dot_product_attention` is correct and fast (flash
   path; cos 0.999997 vs fp32, 1 GB peak at 50k tokens, `k6_checks.py sdpa`). With an attention mask it silently
   dispatches to the memory-efficient kernel, which returns garbage/NaNs (flash has no masked kernel: "No available
-  kernel"). Every masked model must use eager attention or the math kernel:
+  kernel"). Every masked model must use the math kernel (eager is wrong too for Qwen, see below):
   - Gemma 4 (LTX text encoder + enhancer): enhancer emitted only `<pad>`, embeddings ~0.70 cosine vs eager.
-  - Qwen2.5-VL (Kandinsky text encoder): cosine down to 0.46 on real tokens → `set_attn_implementation("eager")`.
+  - Qwen2.5-VL (Kandinsky text encoder): cosine down to 0.46 on real tokens. **Eager is also wrong** (found 2026-10-11
+    ~00:00 UTC): eager vs math-SDPA prompt embeddings have mean cosine 0.95 but 62–69% of tokens < 0.99 (min 0.05),
+    and eager generation garbles text ("itsoz addCriterion", "creatinging"). Every K6 job before then was conditioned
+    on corrupted embeddings, and one Time Machine expansion collapsed into markdown that Kandinsky drew as on-screen
+    text. Fix: `TE_ATTN=sdpa` + `pipe.text_encoder.forward` wrapped in `sdpa_kernel([SDPBackend.MATH])` with
+    `functools.wraps` (without it `generate()` rejects `pixel_values`/`image_grid_thw`). Probes:
+    `/workspace/probe_enhance.py`, `probe_enhance2.py`.
   - Hunyuan video VAE (causal mask): tiled decode 78% NaN → black tiles. Fixed by wrapping `vae.decode`/`vae.encode` in
     `sdpa_kernel([SDPBackend.MATH])` (tiled: 13.7 s, 4.5 GB, correct). MIOpen is not the cause (same NaNs with
     `torch.backends.cudnn.enabled=False`).
@@ -115,6 +122,10 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   The worker can't pull jobs from a tunnel or a hosted relay; the Jupyter gateway is the only channel.
 - **The gateway's nginx 403s any write (PUT/DELETE) without a same-origin `Origin` header**, even with a valid cookie
   (GETs pass). The relay sends `Origin` on every upstream call.
+- **The prompt enhancer answers like a chat bot** ("Rewrite Prompt:", markdown headings, `</ENDAUDCAP>`) and can
+  ramble (370 words with camera pans, no audio tag → silent clip). `worker_k6.py` `clean_expansion` flattens it, fixes
+  the audio tag, carries the prompt's `<AUDCAP>` over, and falls back to the prompt as written on echo/repetition/
+  >250 words. Kandinsky Lite is distilled (guidance 1.0): no negative prompt, so prompts must not name what to avoid.
 - **Large input images OOM the prompt enhancer** (found 2026-10-10 with `tests/test.jpg`, 2560×1707): Qwen2.5-VL with
   eager attention asked for 15.8 GB at the vision encoder; the same photo at 1024×683 ran fine (52 s). The repo's
   `worker_k6.py` shrinks images to `MAX_IMAGE_SIDE` (1024) before use. Deployed ~20:57 UTC; the full-size photo then ran
@@ -156,12 +167,33 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 ## Next steps
 0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
    `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker runs
-   the repo's `worker_k6.py` (PID 8518 since ~22:56 UTC, with `last.png`; PIDs 6067 and 7582 are harmless zombies).
-1. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
+   the repo's `worker_k6.py` (PID 11238 since ~00:02 UTC 2026-10-11, math-SDPA text encoder + expansion cleanup; backup of
+   the eager version at `/workspace/worker_k6.eager.bak.py`; older PIDs are harmless zombies).
+1. **Moment strength:** with clean embeddings, snow and 2125 (a drone) show up and places stay recognizable, but
+   hurricane is mostly in the audio and nature-reclaims barely changes a library interior in 3 s. Try stronger arrive
+   wording, 5 s, or the Film chain. Re-check speed/quality numbers above: they were measured with eager embeddings.
+2. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
-2. **Time Machine:** campus photos in `public/places/` + `places.ts`; worker-side Film chaining (last frame → next
+3. **Merge main's real campus map (PR #8, `9e9a8f7`) into this branch.** Main replaced hand-placed `{x, y}` pins with
+   `sourceId`s (UCF map location IDs) that `scripts/refresh-campus-map.mjs` resolves into `campusGeography.json` and
+   `mapProjection.ts` projects. Conflicts and resolutions:
+   - `src/timeMachine/mapData.ts`: take main's, then re-add our six places as `{placeId, sourceId, label, number}`
+     entries `05`–`10` *after* the original four (`tests/campusMap.test.tsx` unpacks those four in order).
+   - Add UCF IDs to the script's `ids` list and rerun `node scripts/refresh-campus-map.mjs`: `'40'` Engineering I,
+     `'91'` Engineering II, `'120'` Research I, `'80'` Health Sciences I, `'26'` John T. Washington Center.
+   - **Cypress Dome has no UCF location ID**, and the script throws `Missing official anchor` for unknown IDs, so it
+     needs a hand-written anchor (with a comment saying where it came from). Its boardwalk (`CYP_Inside.jpg`) is the
+     walk between the Student Union and Memory Mall, south of Memory Mall. Not OSM's "Cypress Trail" (way 271298263),
+     which is far too far east.
+   - `docs/api.md`, `docs/frontend.md`: keep ours (main still says preset places have no photos and lacks `view`).
+     `README.md`: take main's (the conflict is just two copies of the "Slim README" commit).
+   - Afterwards: Engineering I and II land ~40 px apart at zoom 1, so their labels likely overlap. Offset them via
+     main's per-pin `waypoint-<placeId>` class. Optionally add the new buildings' OSM way IDs to `LANDMARK_IDS` and the
+     script's `landmarks` filter for outlines. Update main's `docs/frontend-map.md` (it lists only four places), then
+     `npx tsc -b && npx vitest run`.
+4. **Time Machine:** worker-side Film chaining (last frame → next
    shot, stitch with PyAV) and a `finalFrameUrl` for the before/after slider.
-3. Decide the project angle — the model's odd physics (balls floating off tables, duplicating) could anchor a
+5. Decide the project angle — the model's odd physics (balls floating off tables, duplicating) could anchor a
    "what does the world model get wrong?" demo.
-4. Optional: Kandinsky 6 VSR (super-resolution) needs flex attention + `torch.compile` — untested on ROCm.
-5. Clean scratch files on `/workspace`. After the hackathon: revoke any HF token, destroy the instance.
+6. Optional: Kandinsky 6 VSR (super-resolution) needs flex attention + `torch.compile` — untested on ROCm.
+7. Clean scratch files on `/workspace`. After the hackathon: revoke any HF token, destroy the instance.

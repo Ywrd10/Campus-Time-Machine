@@ -10,7 +10,7 @@
 # offload (whose host-RAM copies are what killed two instances), no per-job model reloads, and one pipeline for
 # both text- and image-to-video. OFFLOAD=1 falls back to enable_model_cpu_offload() if VRAM turns out too tight
 # (~27 GB host RAM, still well under the 59 GB cgroup limit).
-import os, time, gc, json, shutil, threading, traceback, random
+import os, re, time, gc, json, shutil, threading, traceback, random, functools
 os.environ["HF_HOME"] = "/workspace/hf"
 import numpy as np
 import torch
@@ -23,7 +23,11 @@ ENHANCE = os.environ.get("ENHANCE", "1") == "1"  # Qwen2.5-VL prompt expansion; 
 OFFLOAD = os.environ.get("OFFLOAD", "0") == "1"
 STEPS = int(os.environ.get("STEPS", 10))  # model card: 10; pipeline docstring: 16. Benchmark both.
 MAX_FRAMES = int(os.environ.get("MAX_FRAMES", 121))  # 4k+1; 121 = the 5 s the model was trained on
-TE_ATTN = os.environ.get("TE_ATTN", "eager")  # SDPA was silently wrong for Gemma 4 here; k6_checks.py te decides
+# Qwen2.5-VL attention. On this ROCm stack both usual paths are wrong: masked SDPA dispatches to the
+# memory-efficient kernel (NaNs/garbage), and eager garbles generation ("itsoz addCriterion", "creatinging") and
+# derailed a Time Machine expansion into markdown that Kandinsky drew as on-screen text. So: SDPA pinned to the
+# math kernel for every text-encoder call (expansion and prompt encoding); probe_enhance*.py has the comparison.
+TE_ATTN = os.environ.get("TE_ATTN", "sdpa")
 JOB_TTL = float(os.environ.get("JOB_TTL_HOURS", 6)) * 3600
 # Longest side for input images. Prompt expansion feeds the image to Qwen2.5-VL with eager attention, which is
 # quadratic in image tokens: a 2560x1707 photo asked for 15.8 GB and OOM'd; 1024x683 worked (52 s job).
@@ -83,12 +87,14 @@ if os.environ.get("VAE_TILING", "1") == "1":
 # are small, so it costs ~3 s per clip. The transformer's attention checked fine (k6_checks.py dit).
 from torch.nn.attention import sdpa_kernel, SDPBackend
 def _math_sdpa(fn):
+    @functools.wraps(fn)  # keeps the signature: generate() validates model kwargs against forward's
     def wrapped(*args, **kwargs):
         with sdpa_kernel([SDPBackend.MATH]):
             return fn(*args, **kwargs)
     return wrapped
 pipe.vae.decode = _math_sdpa(pipe.vae.decode)
 pipe.vae.encode = _math_sdpa(pipe.vae.encode)
+pipe.text_encoder.forward = _math_sdpa(pipe.text_encoder.forward)
 gc.collect()
 SAMPLE_RATE = pipe.audio_sample_rate
 threading.Thread(target=heartbeat, daemon=True).start()  # only advertise online once the model is ready
@@ -106,7 +112,37 @@ def expand(prompt, image, seed):
     out = pipe.expand_prompts(prompt, pipe.tokenizer, pipe.text_encoder, torch.device("cuda"), image=image,
                               generator=torch.Generator("cuda").manual_seed(seed))
     out = out[0] if isinstance(out, (list, tuple)) else out
-    return out if out and out.strip() else prompt
+    cleaned = clean_expansion(out or "", prompt)
+    if not cleaned:
+        log("expansion rejected, using the prompt as written:", (out or "")[:200].replace("\n", " "))
+    return cleaned or prompt
+
+# The expander sometimes answers like a chat bot ("Sure, here's...", markdown headings, "---"). Kandinsky renders
+# that literally (headings became on-screen text), so flatten it to plain sentences, and reject output that
+# echoes the instruction, repeats itself, or rambles (long expansions add camera moves and drop the audio tag; the
+# 370-word one for a library clip came out nearly silent and unchanged). Audio must stay in <AUDCAP>…<ENDAUDCAP>,
+# so a malformed closing tag is fixed and a missing block is carried over from the prompt.
+PREAMBLE = re.compile(r"^(sure|okay|certainly|here('s| is)|rewritten|expanded|transform|rewrite|prompt)\b.*:\s*$", re.I)
+AUDIO = re.compile(r"<AUDCAP>.*?<ENDAUDCAP>", re.S)
+def clean_expansion(text, prompt=""):
+    lines = []
+    for line in text.strip().splitlines():
+        line = re.sub(r"^\s*(#+|[-*]\s|\d+\.\s)", "", line).replace("**", "").replace("__", "").strip()
+        if not line or set(line) <= set("-=*_ ") or (not lines and PREAMBLE.match(line)):
+            continue
+        if re.fullmatch(r"[\w ,&/()-]{1,40}:", line):  # bare section label like "Scene Description:"
+            continue
+        lines.append(line)
+    out = re.sub(r"\s+", " ", " ".join(lines)).strip()
+    out = re.sub(r"^(rewrite prompt|rewritten prompt|expanded prompt|prompt)\s*:\s*", "", out, flags=re.I)
+    out = re.sub(r"</\s*(ENDAUDCAP|AUDCAP)>", "<ENDAUDCAP>", out)
+    if "<AUDCAP>" not in out and (audio := AUDIO.search(prompt)):
+        out = f"{out} {audio.group(0)}"
+    words = out.lower().split()
+    if (len(words) < 12 or len(words) > 250 or re.match(r"(transform|rewrite|you are)\b", out, re.I)
+            or re.search(r"\b(\w+)(?: \1\b){2,}", out.lower())):
+        return ""
+    return out
 
 def run(job_dir, req, status):
     mode = req.get("mode")

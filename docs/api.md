@@ -51,7 +51,7 @@ Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of 
 
 ## Campus Time Machine: `/api/timelines`, `/api/wall`
 
-- `POST /api/timelines`: multipart `place` **or** `image`, plus `moment` and `length` (`snapshot` / `film`);
+- `POST /api/timelines`: multipart `place` (+ optional `view`, a view id from `places.ts`; default first) **or** `image`, plus `moment` and `length` (`snapshot` / `film`);
   returns `{ "jobId": "..." }`.
 - `GET /api/timelines/:id`: the job status/output contract above plus `shots` (one for Snapshot, three for Film).
   Each shot has `status`, optional `phase` (`now` / `shift` / `arrive`), optional numeric `progress`, optional
