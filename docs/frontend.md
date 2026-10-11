@@ -3,6 +3,27 @@
 Notes on the campus workspace, mock (demo) mode, and what the browser stores. Map details are in
 [frontend-map.md](frontend-map.md).
 
+## Team About page
+
+The header links to Studio (`#studio`) and About (`#about`). About introduces Broc Weselmann and Diego
+Rolon, links to their supplied LinkedIn profiles, and credits the frontend, AMD/ROCm, and Kandinsky stack
+in a compact “Built with” row near the bottom. The page opens directly with “Meet the team” and the member cards, with no introductory
+hero above them. Direct links, refresh, and browser Back/Forward support the About page. The studio
+stays mounted while hidden, so uploaded photos, selected settings, and job polling survive navigation;
+the Wall refreshes when the studio becomes active again. Navigation moves focus to the main content and
+updates the document title. Skip-to-workspace stays on the current page.
+
+`src/about/About.tsx` contains the team details; `src/about/about.css` uses the existing UCF color tokens.
+The member cards use the team's supplied headshots, bundled locally in `src/about/assets/`, and the supplied
+LinkedIn links. Each short bio summarizes the background supplied by the team directly: Broc's Godot,
+Steam release, and web/Linux experience; Diego's UCF degree path and backend/systems/cloud/AI interests.
+Individual responsibilities on this hackathon project are not inferred from those backgrounds.
+
+Research references: Knight Hacks VIII projects [KnightSource](https://devpost.com/software/knightsource)
+and [WizzOff](https://devpost.com/software/wizzoff) separate project inspiration, what was built, the
+technology used, and creator credits. The About page keeps creator introductions and technology credits;
+the initial project-story sections were removed following the team's preference for a concise team page.
+
 ## Campus studio polish
 
 Free mode is no longer mounted or linked; the campus map and Journey Wall are the single workspace. Film
