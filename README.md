@@ -7,23 +7,10 @@ AMD Radeon Cloud instance.
 
 Two workspaces:
 
-The default workspace is a purple campus explorer built from actual OpenStreetMap geometry and official UCF waypoint coordinates. The geographic basemap is bundled locally, preserves real proportions, and displays source credits; see [map data and refresh instructions](public/maps/README.md). Select a waypoint on the interactive map (or in its place dropdown) to open that place's photo and moment options below the map. The Journey Wall is part of the same page, with playback, filtering, and downloads. The map supports zoom/reset/centering, drag, pinch, Ctrl/Command-wheel, and arrow/+/-/0 keys when focused. Ordinary scrolling still scrolls the page. The original studio remains available as **Free mode**; switching views preserves inputs and active polling. See [the map frontend notes](docs/frontend-map.md) and [the original Time Machine plan](docs/campus-time-machine.md).
-
-In demo mode, all journeys return the existing fixed 6-second MP4. Timeline stages are explicitly simulated and omit invented percentages. The sample is not a campus render and has no audio. Campus locations and moment thumbnails are original vector concept illustrations, labeled as such. There are no team campus photos or 2–3 genuine pre-rendered campus films in the repository yet. Add your own photos using `public/places/README.md` and `src/timeMachine/places.ts`; replace the mock sample and its actual metadata in `src/services/timeline.ts` when the team's films are ready. HTTP-mode generation requires a real photo in this frontend until the preset photos are added. In HTTP mode only **Snapshot** is offered: Film needs the worker to chain shots from each previous last frame, which it doesn't do yet.
-
-Mock **Add to Wall** saves completed journey metadata in this browser, not to a shared server. Reloading restores the current timeline job ID and its place/moment/length from localStorage, including mock jobs. Uploaded image bytes and credentials are never stored there. If browser storage is unavailable, generation still works but reload recovery is unavailable. Uploaded-photo comparison after a reload requires the relay to return `beforeImageUrl`; a stale blob URL is not persisted. **Stop waiting** clears local tracking without canceling a server job. Browser tabs share the saved metadata but do not coordinate concurrent renders.
-
-Opening day uses October 7, 1968, verified against [UCF University Archives](https://library.ucf.edu/about/departments/special-collections-university-archives/university-history/). Its scene is an imagined period treatment of a current photo, not a historically accurate reconstruction. Moment templates avoid official logos, mascots, and seals.
-
-### Timeline relay contract
-
-Time Machine uses the same provider/base URL environment variables as Free mode. `src/services/timeline.ts` centralizes these endpoints, which `relay/server.mjs` serves (Snapshot only so far):
-
-- `POST /api/timelines`: multipart `place` **or** `image`, plus `moment` and `length` (`snapshot` / `film`); returns `{ "jobId": "..." }`.
-- `GET /api/timelines/:id`: the existing job status/output contract plus `shots` (one for Snapshot, three for Film). Each shot has `status`, optional `phase` (`now` / `shift` / `arrive`), optional numeric `progress`, optional `output`, and optional `thumbnail`. Phases can be inferred by order if omitted. `beforeImageUrl` and `finalFrameUrl` are optional top-level image URLs for comparison.
-- `GET /api/wall`: an array of `{ "id", "place", "moment", "thumbnail", "url" }` for completed journeys. `moment` uses the IDs in `src/timeMachine/moments.ts`; `place` is a display name. Completed real jobs appear on the relay's Wall automatically; the frontend does not invent a publishing endpoint.
-
-The relay owns prompt construction, source photos for preset place IDs, safe shot durations, audio generation, and chaining/stitching. The browser sends selection IDs, never arbitrary shot templates; the relay imports `src/timeMachine/moments.ts` and `places.ts` directly, so the templates live in one place. A Snapshot renders the `arrive` prompt as image→video at 640×352, 3 s, 10 steps (about 50 s plus prompt expansion). The relay returns the uploaded photo as `beforeImageUrl` but no `finalFrameUrl` yet, so the before/after slider stays disabled for real renders. It records the timeline jobs it creates in `relay/wall.json` (gitignored), and `/api/wall` lists the completed ones. The UI only displays real numeric progress when the relay supplies it. Both workspaces use `src/lib/pollJob.ts`, with abort handling, 800ms polling, and a 15-minute limit. Runtime guards reject invalid status/output shapes and executable media URL protocols. Worker/relay changes remain the backend team's responsibility.
+- **Campus Time Machine** (default): pick a place on a purple campus map (real OpenStreetMap geometry and official
+  UCF coordinates; see [public/maps/README.md](public/maps/README.md)), pick a moment, and watch a photo of that
+  spot change. Includes a Journey Wall of finished clips.
+- **Free mode**: the original studio, with a free-form prompt, text or image input, and preset settings.
 
 ## Run locally
 
@@ -79,25 +66,23 @@ exactly these.
 
 ## Project map
 
-- `src/components/ModeInputs.tsx`: modular text and image panels (the audio panel is unused).
-- `src/components/GenerationSettings.tsx`: shared configuration controls.
-- `src/components/VideoOutput.tsx`: player, progress, failure, and download UI.
-- `src/lib/types.ts`: request, submission, status, service, and MP4 contracts.
-- `src/lib/capabilities.ts`: tested Kandinsky presets and input validation (shared with the relay).
-- `src/services/timeline.ts`, `src/timeMachine/`: Campus Time Machine adapters, data, and views.
-- `relay/server.mjs`: laptop-side relay to the Jupyter instance. `instance_scripts/`: worker and setup scripts for the instance.
-- `src/services/generation.ts`: interchangeable mock and HTTP adapters.
-- `src/hooks/useGeneration.ts`: asynchronous job lifecycle and polling.
-- `public/demo.mp4`: bundled sample output; replace with a teammate's generated clip if desired, then update its metadata in the mock adapter.
+- `src/components/`: Free mode panels (`ModeInputs`, `GenerationSettings`, `VideoOutput`).
+- `src/timeMachine/`: Campus Time Machine views, map, places, and moment prompt templates.
+- `src/services/generation.ts`, `src/services/timeline.ts`: mock and HTTP adapters.
+- `src/hooks/useGeneration.ts`, `src/lib/pollJob.ts`: job lifecycle and polling.
+- `src/lib/capabilities.ts`, `src/lib/types.ts`: tested presets, validation, and contracts (shared with the relay).
+- `relay/`: laptop-side relay to the Jupyter instance.
+- `instance_scripts/`: worker and setup scripts that run on the instance.
+- `public/demo.mp4`: the mock-mode sample clip.
 
-No authentication, accounts, database, payments, or credentials are included.
+No accounts, database, payments, or committed credentials.
 
-## Verification
+## Docs
 
-Strict TypeScript and the Vite production build pass. Twenty-four Vitest checks cover the Free mode settings/validation/jobs, timeline lifecycle and persistence, waypoint IDs, official UCF coordinates, geographic proportions and source geometry, map navigation bounds, semantic controls, and frontend-to-relay integration. The relay integration test copies the real relay to a disposable directory and runs a local Jupyter fixture; it checks Snapshot requests, server prompt construction, source-image streaming, MP4 Range responses, Wall results, unsupported Film/missing-photo errors, and Free mode. It uses no private credentials, GPU, or real Wall data. The bundled MP4 was encoded and decoded with FFmpeg. Vite starts and reports its local URL.
-
-The frontend UI was checked in a local browser: text generation, native MP4 playback and download, image/final-frame previews, audio preview and duration, setting constraints, keyboard tab navigation, and failed-job retry. Responsive checks cover a 1366×768 desktop viewport and a 390×844 mobile viewport. No lint script is configured; `npm run build` provides strict TypeScript checking. These browser checks predate the switch to the Kandinsky presets.
-
-Kandinsky presets and relay (2026-10-10): `relay/server.mjs` was run against a local fake Jupyter server that stands in for the Contents API, `/files`, and the worker. Checked: Free-mode text generation from the UI through the Vite proxy (the request reached the worker as 640×352, 10 steps), relay rejection of untested sizes, Time Machine Snapshot with an uploaded photo (prompt built from the moment template, `beforeImageUrl`, Wall listing), the readable Film and missing-place-photo errors, and MP4/source-image streaming. Then against the live instance: Free-mode text→video from the UI (640×352, 3 s, 10 steps) completed in 48 s of GPU time and played in the browser. Image→video through the relay also completed (52 s) with a 1024 px photo; the same photo at 2560×1707 ran the prompt enhancer out of GPU memory, which the worker's `MAX_IMAGE_SIDE` resize fixed: after deploying it, the full-size photo also ran in 52 s. Time Machine hasn't run live yet.
-
-Campus Time Machine browser checks cover place/moment selection, one-shot Snapshot and three-shot Film structure, custom photo upload, journey completion and reload recovery, comparison range controls, local wall saving and archived playback, failed-job retry, and Free mode generation continuing across view changes. The 320px mobile viewport was also checked for horizontal overflow. Actual campus films and multi-shot chaining remain unverified until the campus photos and worker chaining exist.
+- [docs/architecture.md](docs/architecture.md): how the relay reaches the GPU worker, and why.
+- [docs/api.md](docs/api.md): HTTP contract for generations, timelines, and the Wall.
+- [docs/frontend.md](docs/frontend.md): workspace behavior, mock mode, and local storage.
+- [docs/frontend-map.md](docs/frontend-map.md): the campus map explorer.
+- [docs/campus-time-machine.md](docs/campus-time-machine.md): the original Time Machine plan.
+- [docs/verification.md](docs/verification.md): what has been tested, and how.
+- `AGENTS.md`: instance operations, benchmarks, and gotchas.

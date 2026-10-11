@@ -10,7 +10,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { HttpError, createJupyterTransport } from './transport-jupyter.mjs';
 import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
 import { MOMENTS, buildShots } from '../src/timeMachine/moments.ts';
-import { PLACES } from '../src/timeMachine/places.ts';
+import { PLACES, placeView } from '../src/timeMachine/places.ts';
 
 const envFile = new URL('./.env.local', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -107,14 +107,15 @@ async function createTimeline(req) {
   if (length === 'film') throw new HttpError(400, 'Film journeys aren’t supported by the GPU worker yet. Choose Snapshot.');
   if (length !== 'snapshot') throw new HttpError(400, 'Choose Snapshot or Film.');
   let image = formFile(form, 'image');
-  let place;
+  let place, view;
   if (!image) {
     place = PLACES.find(place => place.id === form.get('place'));
     if (!place) throw new HttpError(400, 'Choose a campus place or upload a photo.');
-    if (!place.photo) throw new HttpError(400, `There’s no photo of ${place.name} yet. Upload one, or add it under public/places.`);
-    image = new File([await readFile(new URL(`.${place.photo}`, PUBLIC_DIR))], place.photo.split('/').pop());
+    view = placeView(place, form.get('view'));
+    if (!view) throw new HttpError(400, `There’s no photo of ${place.name} yet. Upload one, or add it under public/places.`);
+    image = new File([await readFile(new URL(`.${view.photo}`, PUBLIC_DIR))], view.photo.split('/').pop());
   }
-  const [{ prompt }] = buildShots(moment, place?.description || 'campus', 'snapshot');
+  const [{ prompt }] = buildShots(moment, view?.description || 'the UCF campus', 'snapshot');
   const placeName = place?.name || 'Your campus photo';
   const timeline = { place: placeName, moment: moment.id, length };
   const { jobId } = await queueJob({ mode: 'image', prompt, ...withPreset(SNAPSHOT), timeline }, { image });

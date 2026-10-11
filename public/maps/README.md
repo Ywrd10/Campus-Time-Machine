@@ -1,6 +1,6 @@
 # UCF geographic basemap
 
-`ucf-campus.svg` is a locally rendered, north-up map made from real OpenStreetMap ways. It depicts roads, pedestrian paths, buildings, parking, green areas, and water. It uses no Google imagery, traced visitor-map artwork, tile service, or API key. Campus extent is chosen for the four generation waypoints; zoom and pan reveal neighboring features.
+`ucf-campus.svg` is a locally rendered, north-up map made from real OpenStreetMap ways. It depicts roads, pedestrian paths, buildings, parking, green areas, and water. It uses no Google imagery, traced visitor-map artwork, tile service, or API key. Campus extent is chosen for the generation waypoints; zoom and pan reveal neighboring features.
 
 `ucf-osm.json` is the corresponding geographic extract, with original OSM way IDs and longitude/latitude coordinates. **© OpenStreetMap contributors**, available under the [Open Database License (ODbL 1.0)](https://opendatacommons.org/licenses/odbl/1-0/). Source: [OSM map API, UCF bounding box](https://api.openstreetmap.org/api/0.6/map?bbox=-81.210,28.595,-81.189,28.613). Extraction date and provenance are included in the JSON and SVG. The data is supplied as-is; updates to OSM after extraction are not automatic.
 

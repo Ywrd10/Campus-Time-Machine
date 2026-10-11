@@ -1,11 +1,15 @@
-# Campus photo handoff
+# Campus photos
 
-Add the team's own landscape JPGs here (at least 1280 pixels wide). Avoid recognizable faces and official marks.
+Name files `<ABBR>_<Inside|Outside>[n].jpg` (e.g. `LIB_Inside2.jpg`) and add each as a `view(...)` of its place in
+`src/timeMachine/places.ts`, with a short label and a description (it fills `{place}` in the moment prompts).
+New places also need a pin in `src/timeMachine/mapData.ts`. Avoid recognizable faces and official marks.
 
-Set `photo` in `src/timeMachine/places.ts`, for example:
+| Abbr | Place | Abbr | Place |
+|---|---|---|---|
+| CYP | Cypress Dome | LIB | John C. Hitt Library |
+| ENG1 | Engineering I | MEM | Memory Mall |
+| ENG2 | Engineering II | REF | Reflecting Pond |
+| HS1 | Health Sciences I | RES | Research I |
+| JOHN | John T. Washington Center | SU | Student Union |
 
-```ts
-{ id: 'reflecting-pond', name: 'Reflecting Pond', description: 'the Reflecting Pond on the UCF campus', kind: 'pond', photo: '/places/reflecting-pond.jpg' }
-```
-
-The UI uses labeled vector concepts until each photo is supplied. The relay also needs the same place IDs and its own source photo registry. An uploaded photo bypasses preset place selection and is sent as multipart `image` in HTTP mode.
+Snapshots render at 640×352, so the worker center-crops portrait photos to the middle band.

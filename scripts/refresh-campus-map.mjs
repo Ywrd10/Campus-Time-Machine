@@ -40,19 +40,27 @@ const features = ways.flatMap(way => {
   return [{ id: way.id, layer: kind, name: way.tags.name || '', detail: way.tags.highway || '', closed: way.coordinates[0][0] === way.coordinates.at(-1)[0] && way.coordinates[0][1] === way.coordinates.at(-1)[1], coordinates: way.coordinates }];
 });
 const locations = JSON.parse(locationsText);
-const ids = ['memorymall', '52', '2', '360'];
+const ids = ['memorymall', '52', '2', '360', '40', '91', '120', '80', '26'];
 const anchors = ids.map(id => {
   const location = locations.find(location => location.id === id);
   if (!location?.googlemap_point?.every(Number.isFinite)) throw new Error(`Missing official anchor ${id}`);
   return { id, name: location.name, coordinates: [location.googlemap_point[1], location.googlemap_point[0]] };
 });
+// UCF's registry has no entry for the cypress dome. Its boardwalk (the team's CYP_Inside.jpg) is OSM way
+// 334887933 (bridge=boardwalk) through the scrub between the Student Union and Memory Mall; the anchor is
+// that way's middle node. Not OSM's "Cypress Trail", which is on the far east side of campus.
+const boardwalk = features.find(feature => feature.id === '334887933');
+if (!boardwalk) throw new Error('Missing cypress dome boardwalk (OSM way 334887933)');
+anchors.push({ id: 'cypress-dome', name: 'Cypress Dome boardwalk (OSM way 334887933)', coordinates: boardwalk.coordinates[Math.floor(boardwalk.coordinates.length / 2)] });
 const mall = locations.find(location => location.id === 'memorymall');
 if (features.length < 500 || !features.some(feature => feature.name === 'Student Union') || !mall?.poly_coords?.length) throw new Error('Incomplete campus data');
+// OSM outlines highlighted for selected waypoints; keep in sync with LANDMARK_IDS in mapData.ts.
+const landmarkIds = ['154245264', '154245274', '272718812', '307647104', '307646411', '827224010', '154245252', '154245217', '334882442'];
 const fetched = new Date().toISOString().slice(0, 10);
 const osmData = { fetched, source: osmUrl, license: 'ODbL-1.0', attribution: '© OpenStreetMap contributors', features };
 const data = {
   fetched,
-  osm: { source: osmUrl, license: 'ODbL-1.0', attribution: '© OpenStreetMap contributors', landmarks: features.filter(feature => ['154245264', '154245274', '272718812'].includes(feature.id)) },
+  osm: { source: osmUrl, license: 'ODbL-1.0', attribution: '© OpenStreetMap contributors', landmarks: features.filter(feature => landmarkIds.includes(feature.id)) },
   ucf: { source: ucfUrl, attribution: 'UCF Campus Map', anchors, memoryMall: mall.poly_coords },
 };
 const escapeXml = text => text.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);

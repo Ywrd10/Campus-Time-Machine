@@ -9,7 +9,7 @@ import { ArrivalView } from './ArrivalView';
 import { CampusScene } from './CampusScene';
 import { CampusMap } from './CampusMap';
 import { Wall } from './Wall';
-import { PLACES } from './places';
+import { PLACES, placeView } from './places';
 import { MOMENTS } from './moments';
 import { useTimeline } from './useTimeline';
 import type { JourneyLength, TimelineRequest } from './types';
@@ -19,6 +19,7 @@ function scrollTo(element: HTMLElement | null) {
 }
 export function TimeMachine({ active }: { active: boolean }) {
   const [placeId, setPlaceId] = useState<string>();
+  const [viewId, setViewId] = useState<string>();
   const [momentId, setMomentId] = useState(MOMENTS[0].id);
   const [length, setLength] = useState<JourneyLength>(isMockProvider ? 'film' : 'snapshot');
   const [image, setImage] = useState<File>();
@@ -38,43 +39,44 @@ export function TimeMachine({ active }: { active: boolean }) {
   const place = PLACES.find(place => place.id === selectedId) || (ticket ? PLACES[0] : undefined);
   const moment = MOMENTS.find(moment => moment.id === (ticket?.moment || momentId)) || MOMENTS[0];
   const film = (ticket?.length || length) === 'film';
-  const source = photoUrl || place?.photo;
+  const view = place && placeView(place, ticket ? ticket.view : viewId);
+  const source = photoUrl || view?.photo;
   const locked = journey.status !== 'idle';
   useEffect(() => { if (arrived) setWallRevision(value => value + 1); }, [arrived]);
   useEffect(() => { if (placeId && !ticket) scrollTo(configuration.current); }, [placeId]);
 
   function reset() {
-    if (restoredPlace) setPlaceId(restoredPlace);
+    if (restoredPlace) { setPlaceId(restoredPlace); setViewId(ticket?.view); }
     if (ticket) { setMomentId(ticket.moment); setLength(isMockProvider ? ticket.length : 'snapshot'); }
     journey.reset(); setValidation(undefined);
   }
   function selectPlace(id: string) {
     if (busy) return;
-    journey.reset(); setPlaceId(id); setImage(undefined); setValidation(undefined);
+    journey.reset(); setPlaceId(id); setViewId(undefined); setImage(undefined); setValidation(undefined);
     if (id === placeId) scrollTo(configuration.current);
   }
   function closePlace() {
     if (busy) return;
-    journey.reset(); setPlaceId(undefined); setImage(undefined); setValidation(undefined); scrollTo(mapArea.current);
+    journey.reset(); setPlaceId(undefined); setViewId(undefined); setImage(undefined); setValidation(undefined); scrollTo(mapArea.current);
   }
   function travel() {
     if (!place) return;
     setValidation(undefined);
     if (ticket && !ticket.place && !image) { setValidation('Upload your campus photo again to start a new journey.'); return; }
-    if (!isMockProvider && !image && !place.photo) { setValidation(`Upload a photo of ${place.name} before generating from this waypoint.`); return; }
-    const request: TimelineRequest = { place: image ? undefined : ticket?.place || place.id, image, moment: ticket?.moment || momentId, length: isMockProvider ? ticket?.length || length : 'snapshot' };
+    if (!isMockProvider && !image && !view) { setValidation(`Upload a photo of ${place.name} before generating from this waypoint.`); return; }
+    const request: TimelineRequest = { place: image ? undefined : ticket?.place || place.id, view: image ? undefined : view?.id, image, moment: ticket?.moment || momentId, length: isMockProvider ? ticket?.length || length : 'snapshot' };
     void journey.start(request, place.name);
   }
   function showWall() { setWallRevision(value => value + 1); scrollTo(wallArea.current); }
   return <div className="time-workspace map-workspace">
     <div ref={mapArea} className="map-area"><CampusMap selected={place?.id} onSelect={selectPlace} disabled={busy} />
-      <div className="map-archive-shortcut"><button type="button" onClick={showWall}><Grid2X2 size={17} /><span>Journey Wall<small>Explore saved arrivals</small></span><ArrowDown size={16} /></button><span>4 WAYPOINTS / 7 MOMENTS</span></div>
+      <div className="map-archive-shortcut"><button type="button" onClick={showWall}><Grid2X2 size={17} /><span>Journey Wall<small>Explore saved arrivals</small></span><ArrowDown size={16} /></button><span>{PLACES.length} WAYPOINTS / {MOMENTS.length} MOMENTS</span></div>
     </div>
     {place ? <section ref={configuration} className="waypoint-workspace" aria-label={`${place.name} journey options`}>
       <div className="waypoint-section-heading"><div><p className="eyebrow"><span /> YOUR NEXT DEPARTURE</p><h2>A new time for <span>{place.name}.</span></h2></div><button className="secondary-button" type="button" onClick={closePlace} disabled={busy}><X size={14} /> Back to map</button></div>
       <div className="time-grid">
         <div className="journey-controls" aria-label="Journey configuration">
-          <PlacePicker place={place} image={image} onImage={file => { setImage(file); setValidation(undefined); }} disabled={locked} />
+          <PlacePicker place={place} view={view} onView={id => { setViewId(id); setImage(undefined); setValidation(undefined); }} image={image} onImage={file => { setImage(file); setValidation(undefined); }} disabled={locked} />
           <MomentPicker selected={ticket?.moment || momentId} onSelect={setMomentId} disabled={locked} kind={place.kind} />
           <section className="journey-section length-section" aria-labelledby="length-heading">
             <div className="section-caption"><span className="step-number">03</span><h2 id="length-heading">Set your journey</h2><Clock3 size={15} aria-hidden="true" /></div>

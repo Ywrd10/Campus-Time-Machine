@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1840 1380">
 <title>University of Central Florida main campus</title>
 <desc>North-up map from real OpenStreetMap road, footpath, building and water geometry.</desc>
-<metadata>© OpenStreetMap contributors; ODbL-1.0 https://opendatacommons.org/licenses/odbl/1-0/ ; https://api.openstreetmap.org/api/0.6/map?bbox=-81.210,28.595,-81.189,28.613 ; extracted 2026-10-10</metadata>
+<metadata>© OpenStreetMap contributors; ODbL-1.0 https://opendatacommons.org/licenses/odbl/1-0/ ; https://api.openstreetmap.org/api/0.6/map?bbox=-81.210,28.595,-81.189,28.613 ; extracted 2026-10-11</metadata>
 <style>
 .greenery{fill:#232032;stroke:#383042;stroke-width:.6}.parking{fill:#272130;stroke:#493a57;stroke-width:1}
 .water{fill:#33344f;stroke:#8177ab;stroke-width:1.5}.paths{fill:none;stroke:#6c5b7a;stroke-width:1.4;opacity:.65}

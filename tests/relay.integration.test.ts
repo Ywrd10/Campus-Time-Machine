@@ -60,7 +60,7 @@ beforeAll(async () => {
   const upstreamPort = await listen(upstream);
   const reservation = createServer(); const port = await listen(reservation); await close(reservation);
   temp = await mkdtemp(join(tmpdir(), 'knight-relay-test-'));
-  for (const file of ['relay/server.mjs', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts']) {
+  for (const file of ['relay/server.mjs', 'relay/transport-jupyter.mjs', 'public/places/SU_Outside2.jpg', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts']) {
     const target = join(temp, file); await mkdir(dirname(target), { recursive: true }); await copyFile(resolve(file), target);
   }
   base = `http://127.0.0.1:${port}/api`;
@@ -95,9 +95,12 @@ it('keeps waypoint snapshots, Wall, source images, video seeking, and Free mode 
   const media = await fetch(origin + job.output!.url, { headers: { Range: 'bytes=0-31' } });
   expect(media.status).toBe(206); expect(media.headers.get('content-type')).toBe('video/mp4'); expect((await media.arrayBuffer()).byteLength).toBe(32);
   await expect(timeline.submit({ image, moment: 'future', length: 'film' })).rejects.toThrow('Film');
-  await expect(timeline.submit({ place: 'student-union', moment: 'future', length: 'snapshot' })).rejects.toThrow('photo');
+  const preset = await timeline.submit({ place: 'student-union', view: 'outside-2', moment: 'future', length: 'snapshot' });
+  expect(queued[1]).toMatchObject({ mode: 'image', timeline: { place: 'Student Union' } });
+  expect(queued[1].prompt).toContain('brick plaza');
+  expect(Buffer.compare(Buffer.from(await (await fetch(origin + (await timeline.getStatus(preset.jobId)).beforeImageUrl!)).arrayBuffer()), await readFile('public/places/SU_Outside2.jpg'))).toBe(0);
   const studio = new HttpGenerationService(base);
   const free = await studio.submit({ mode: 'text', prompt: 'A purple campus at dusk.', settings: DEFAULT_SETTINGS });
   expect((await studio.getStatus(free.jobId)).output).toMatchObject(output);
-  expect(queued[1]).toMatchObject({ mode: 'text', width: 640, height: 352, fps: 24, durationSeconds: 3 });
+  expect(queued[2]).toMatchObject({ mode: 'text', width: 640, height: 352, fps: 24, durationSeconds: 3 });
 }, 20000);

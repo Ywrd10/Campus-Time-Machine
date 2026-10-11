@@ -4,6 +4,7 @@ import type { Phase } from './moments';
 export type JourneyLength = 'snapshot' | 'film';
 export interface TimelineRequest {
   place?: string;
+  view?: string;
   image?: File;
   moment: string;
   length: JourneyLength;
@@ -24,6 +25,7 @@ export interface JourneyTicket {
   jobId: string;
   provider: 'mock' | 'http';
   place?: string;
+  view?: string;
   placeName: string;
   moment: string;
   length: JourneyLength;
