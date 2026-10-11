@@ -1,5 +1,17 @@
 # Verification log
 
+## Frontend polish (2026-10-10)
+
+- All 27 tests pass and the production build passes. New coverage checks all three quality IDs through the
+  real relay against a disposable Jupyter fixture, exact worker sizes/steps, HTTP 400 for unsupported quality,
+  old-call defaults, ticket quality persistence, and determinate/indeterminate generation progress.
+- Browser checks at 1366×900 and 320×844: native quality radios, no horizontal overflow, sponsor credits visible
+  at both sizes, and the layered-frame loading UI. Free mode and Film controls are absent. Reduced-motion CSS
+  disables frame, scan, and pulse animation.
+- Live frontend proxy health reports instance `ok`, worker `online`. High Detail submission verified on the
+  instance as 864×480, 24 FPS, 3 seconds, 10 steps. The shared GPU processes jobs one at a time, so queue time
+  is separate from the quality estimate.
+
 ## Automated
 
 `npm run build` (strict TypeScript + Vite build) and `npm test` pass. The Vitest checks cover Free mode

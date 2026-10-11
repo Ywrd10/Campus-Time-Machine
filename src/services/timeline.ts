@@ -3,6 +3,7 @@ import type { Mp4Output } from '../lib/types';
 import { isMockProvider } from './generation';
 import { MOMENTS, buildShots } from '../timeMachine/moments';
 import { PLACES } from '../timeMachine/places';
+import { journeyQuality } from '../timeMachine/quality';
 import { isWallEntry, readLocalWall, readStored, safeMediaUrl, storeValue } from '../timeMachine/storage';
 import type { TimelineJob, TimelineRequest, TimelineService, WallEntry } from '../timeMachine/types';
 
@@ -13,6 +14,7 @@ const SAMPLE: Mp4Output = { url: '/demo.mp4', filename: 'campus-time-machine-dem
 export function validateTimeline(request: TimelineRequest) {
   if (!MOMENTS.some(moment => moment.id === request.moment)) return 'Choose a destination moment.';
   if (!['snapshot', 'film'].includes(request.length)) return 'Choose Snapshot or Film.';
+  if (request.quality !== undefined && !journeyQuality(request.quality)) return 'Choose a supported video quality.';
   if (!request.image && !PLACES.some(place => place.id === request.place)) return 'Choose a campus place or upload a photo.';
   if (request.image) return validateFile(request.image, 'image');
   return null;
@@ -116,7 +118,8 @@ export class HttpTimelineService implements TimelineService {
     }
     body.set('moment', request.moment);
     body.set('length', request.length);
-    // The relay owns prompt templates, shot durations, and worker configuration.
+    if (request.quality) body.set('quality', request.quality);
+    // The relay owns prompt templates and maps the quality identifier to a tested worker preset.
     const data = await this.json('/timelines', { method: 'POST', body, signal });
     if (!isRecord(data) || typeof data.jobId !== 'string' || !data.jobId) throw new Error('The relay returned an invalid job ID.');
     return { jobId: data.jobId };

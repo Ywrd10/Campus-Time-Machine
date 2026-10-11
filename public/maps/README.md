@@ -12,4 +12,4 @@ Regenerate from the project root with Node 22.18+ and network access:
 node scripts/refresh-campus-map.mjs
 ```
 
-The exporter and frontend share `src/timeMachine/mapProjection.ts`. SVG paths and HTML pin positions use the same projection and scale; the responsive viewport crops or pans the map instead of stretching its geography. Purple basemap colors live in the exporter's SVG stylesheet; selection highlights live in `timeMachine.css`. Regenerate after changing the exporter or projection, then run `npm test` and `npm run build`.
+The exporter and frontend share `src/timeMachine/mapProjection.ts`. SVG paths and HTML pin positions use the same projection and scale; the responsive viewport crops or pans the map instead of stretching its geography. Charcoal basemap colors live in the exporter's SVG stylesheet; selection highlights live in `timeMachine.css`. Regenerate after changing the exporter or projection, then run `npm test` and `npm run build`.

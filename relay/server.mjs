@@ -11,6 +11,7 @@ import { HttpError, createJupyterTransport } from './transport-jupyter.mjs';
 import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
 import { MOMENTS, buildShots } from '../src/timeMachine/moments.ts';
 import { PLACES, placeView } from '../src/timeMachine/places.ts';
+import { DEFAULT_JOURNEY_QUALITY, journeyQuality } from '../src/timeMachine/quality.ts';
 
 const envFile = new URL('./.env.local', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -23,8 +24,6 @@ const EXTENSIONS = { image: /\.(png|jpe?g|webp)$/i, finalFrame: /\.(png|jpe?g|we
 const JOB_ID = /^[0-9a-f-]{36}$/;
 // Every size the frontend offers, both orientations, e.g. "640x352".
 const SIZES = RESOLUTIONS.flatMap(resolution => ['16:9', '9:16'].map(aspectRatio => dimensions({ resolution, aspectRatio })));
-// Time Machine snapshot: the fastest tested preset that keeps full-volume audio (~50 s plus prompt expansion).
-const SNAPSHOT = { model: 'k6-lite-quality', width: 640, height: 352, fps: 24, durationSeconds: 3 };
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
 const WALL_FILE = new URL('./wall.json', import.meta.url); // local index of timeline jobs, newest first
 // Finished clips are copied here once, so replays (the wall, the demo) don't depend on the gateway.
@@ -106,6 +105,8 @@ async function createTimeline(req) {
   const length = form.get('length');
   if (length === 'film') throw new HttpError(400, 'Film journeys aren’t supported by the GPU worker yet. Choose Snapshot.');
   if (length !== 'snapshot') throw new HttpError(400, 'Choose Snapshot or Film.');
+  const quality = journeyQuality(form.get('quality') ?? DEFAULT_JOURNEY_QUALITY);
+  if (!quality) throw new HttpError(400, 'Choose a supported video quality: quick, standard, or high.');
   let image = formFile(form, 'image');
   let place, view;
   if (!image) {
@@ -117,8 +118,9 @@ async function createTimeline(req) {
   }
   const [{ prompt }] = buildShots(moment, view?.description || 'the UCF campus', 'snapshot');
   const placeName = place?.name || 'Your campus photo';
-  const timeline = { place: placeName, moment: moment.id, length };
-  const { jobId } = await queueJob({ mode: 'image', prompt, ...withPreset(SNAPSHOT), timeline }, { image });
+  const timeline = { place: placeName, moment: moment.id, length, quality: quality.id };
+  const preset = { model: quality.model, width: quality.width, height: quality.height, fps: 24, durationSeconds: 3 };
+  const { jobId } = await queueJob({ mode: 'image', prompt, ...withPreset(preset), timeline }, { image });
   const wall = await readWallIndex();
   await writeFile(WALL_FILE, JSON.stringify([{ id: jobId, place: placeName, moment: moment.id }, ...wall].slice(0, 200)));
   return { jobId };
