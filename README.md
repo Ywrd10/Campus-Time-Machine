@@ -5,12 +5,11 @@ Knight Hacks IX project: text→video and image→video with synchronized audio,
 Vite, Tailwind CSS, and Lucide icons; a small Node relay on the laptop forwards jobs to a GPU worker on the
 AMD Radeon Cloud instance.
 
-Two workspaces:
-
-- **Campus Time Machine** (default): pick a place on a purple campus map (real OpenStreetMap geometry and official
+**Campus Time Machine**: pick a place on a black-and-gold campus map (real OpenStreetMap geometry and official
   UCF coordinates; see [public/maps/README.md](public/maps/README.md)), pick a moment, and watch a photo of that
   spot change. Includes a Journey Wall of finished clips.
-- **Free mode**: the original studio, with a free-form prompt, text or image input, and preset settings.
+Choose a moment and a video quality: Quick (352p), Standard (352p, default), or High Detail (480p).
+Free mode and Film are no longer part of the frontend. The header credits AMD and links to the model on Hugging Face.
 
 ## Run locally
 
@@ -62,11 +61,12 @@ exactly these.
 - Fast is also offered at 2 and 5 s without a time estimate (not benchmarked). Fast audio is about 9 dB quieter.
 - Times exclude Qwen prompt expansion (5–16 s) and MP4 export.
 - Text→video and image→video only. Images: PNG/JPG/WebP up to 15 MB, resized and center-cropped.
-- The Time Machine renders Snapshots only (640×352, 3 s, 10 steps); multi-shot Film isn't available yet.
+- The Time Machine renders 3-second, 24 FPS Snapshots: Quick (640×352, 6 steps), Standard
+  (640×352, 10 steps), or High Detail (864×480, 10 steps). Shared presets live in `src/timeMachine/quality.ts`.
 
 ## Project map
 
-- `src/components/`: Free mode panels (`ModeInputs`, `GenerationSettings`, `VideoOutput`).
+- `src/components/`: reusable file inputs and retained legacy studio components.
 - `src/timeMachine/`: Campus Time Machine views, map, places, and moment prompt templates.
 - `src/services/generation.ts`, `src/services/timeline.ts`: mock and HTTP adapters.
 - `src/hooks/useGeneration.ts`, `src/lib/pollJob.ts`: job lifecycle and polling.

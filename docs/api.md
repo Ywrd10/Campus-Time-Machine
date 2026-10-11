@@ -51,7 +51,7 @@ Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of 
 
 ## Campus Time Machine: `/api/timelines`, `/api/wall`
 
-- `POST /api/timelines`: multipart `place` (+ optional `view`, a view id from `places.ts`; default first) **or** `image`, plus `moment` and `length` (`snapshot` / `film`);
+- `POST /api/timelines`: multipart `place` (+ optional `view`, a view id from `places.ts`; default first) **or** `image`, plus `moment`, `length` (`snapshot`), and optional `quality` (`quick` / `standard` / `high`; defaults to `standard`);
   returns `{ "jobId": "..." }`.
 - `GET /api/timelines/:id`: the job status/output contract above plus `shots` (one for Snapshot, three for Film).
   Each shot has `status`, optional `phase` (`now` / `shift` / `arrive`), optional numeric `progress`, optional
@@ -61,11 +61,19 @@ Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of 
   `moment` uses the IDs in `src/timeMachine/moments.ts`; `place` is a display name. Completed real jobs appear
   on the Wall automatically; the frontend has no publishing endpoint.
 
-The relay owns prompt construction, source photos for preset place IDs, shot durations, and chaining/stitching.
-The browser sends selection IDs, never arbitrary shot templates; the relay imports `src/timeMachine/moments.ts`
-and `places.ts` directly, so the templates live in one place. A Snapshot renders the `arrive` prompt as
-image→video at 640×352, 3 s, 10 steps (about 50 s plus prompt expansion). Film is rejected with a readable error
-until the worker chains shots.
+The relay owns prompt construction and source photos. The browser sends selection IDs, never arbitrary shot
+templates. `src/timeMachine/quality.ts` is shared by the UI and relay. All Snapshots are 3 seconds at 24 FPS:
+
+| Quality ID | Dimensions | Steps |
+| --- | --- | --- |
+| `quick` | 640×352 | 6 |
+| `standard` (default) | 640×352 | 10 |
+| `high` | 864×480 | 10 |
+
+The relay checks each preset against `src/lib/capabilities.ts` and forwards its exact `bench.size` and
+`bench.steps` to the existing worker. Unknown quality IDs receive HTTP 400 before queueing. Old callers that omit
+quality keep their previous Standard preset. Film is rejected and no longer exposed in the UI. The legacy
+`/api/generations` adapter remains available for backend compatibility; Free mode is no longer mounted.
 
 ## Other relay routes
 

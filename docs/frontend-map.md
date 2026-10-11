@@ -1,11 +1,11 @@
 # Campus explorer frontend
 
-The map and Journey Wall share one workspace. Free mode stays mounted alongside it so switching views doesn't lose uploads or ongoing polling.
+The map and Journey Wall share one workspace. Free mode and Film controls have been removed from the frontend.
 
 ## Flow
 
-1. Start on the purple campus map. Pick one of the ten preset places (Memory Mall, Student Union, Library, Reflecting Pond, Engineering I and II, Research I, Health Sciences I, John T. Washington Center, Cypress Dome) using a keyboard-accessible pin or the place dropdown.
-2. The selected place's source preview and photo upload appear below the map. Moment selection sits directly below that place, followed by Snapshot/Film options and Generate.
+1. Start on the black-and-gold campus map. Pick one of the ten preset places (Memory Mall, Student Union, Library, Reflecting Pond, Engineering I and II, Research I, Health Sciences I, John T. Washington Center, Cypress Dome) using a keyboard-accessible pin or the place dropdown.
+2. The selected place's source preview and photo upload appear below the map. Moment selection sits directly below that place, followed by Quick / Standard / High Detail quality options and Generate.
 3. Follow the existing timeline, play/download the arrival, then save a mock journey or view the server Wall. The inline Wall refreshes after a local save or a completed live journey; no separate Wall tab is needed.
 4. Back to map clears the finished journey selection. While a render is running, waypoint changes are locked; Stop waiting stops local polling without canceling the server job.
 
@@ -19,7 +19,7 @@ Waypoint anchors come from [UCF's official locations registry](https://www.map.u
 
 The map is separate from the generation source image. Real generation uses the team's preset photo of the selected place (one or more views each, `public/places/`) or an uploaded photo. An uploaded photo uses the existing multipart `image` field rather than adding an unsupported field to the relay contract. The local ticket keeps the waypoint display name for reload recovery. The relay currently labels uploaded-photo Wall entries “Your campus photo”; it needs a future contract change to carry the waypoint name to its server Wall.
 
-Live mode offers Snapshot only. Film is enabled only with the mock provider. The before/after comparison uses the relay's `finalFrameUrl` (the clip's last frame). Demo outputs stay explicitly labeled as fixed sample MP4s.
+Both providers offer Snapshot only. Quality IDs are mapped by the relay to tested worker settings; see [api.md](api.md). The before/after comparison uses the relay's `finalFrameUrl` (the clip's last frame). Demo outputs stay explicitly labeled as fixed sample MP4s.
 
 ## Verification
 

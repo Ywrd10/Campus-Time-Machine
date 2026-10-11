@@ -1,6 +1,7 @@
 import type { JourneyTicket, WallEntry } from './types';
 import { MOMENTS } from './moments';
 import { PLACES } from './places';
+import { journeyQuality } from './quality';
 
 export const TICKET_KEY = 'campus-time-machine:current:v1';
 export const WALL_KEY = 'campus-time-machine:wall:v1';
@@ -22,7 +23,8 @@ export function readTicket(): JourneyTicket | undefined {
       !MOMENTS.some(moment => moment.id === ticket.moment) ||
       !['snapshot', 'film'].includes(String(ticket.length)) ||
       (ticket.place !== undefined && !PLACES.some(place => place.id === ticket.place)) ||
-      (ticket.view !== undefined && typeof ticket.view !== 'string')) return;
+      (ticket.view !== undefined && typeof ticket.view !== 'string') ||
+      (ticket.quality !== undefined && !journeyQuality(ticket.quality))) return;
   return ticket as JourneyTicket;
 }
 export function safeMediaUrl(value: unknown): value is string {

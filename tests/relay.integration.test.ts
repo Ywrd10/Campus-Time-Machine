@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { HttpTimelineService } from '../src/services/timeline';
 import { HttpGenerationService } from '../src/services/generation';
 import { DEFAULT_SETTINGS } from '../src/lib/capabilities';
+import { JOURNEY_QUALITIES } from '../src/timeMachine/quality';
 
 // Exercise the actual relay through the frontend adapters, without cloud credentials or GPU usage.
 // Copy it to a disposable directory so its Wall index never touches the user's real relay data.
@@ -39,7 +40,7 @@ beforeAll(async () => {
         const model = JSON.parse(Buffer.concat(chunks).toString()); files.set(file, model);
         if (file.endsWith('/request.json')) {
           const job = JSON.parse(model.content); queued.push(job);
-          files.set(file.replace('request.json', 'status.json'), { content: JSON.stringify({ status: 'completed', progress: 100, output }) });
+          files.set(file.replace('request.json', 'status.json'), { content: JSON.stringify({ status: 'completed', progress: 100, output: { ...output, width: job.width, height: job.height } }) });
         }
         json(model, 201); return;
       }
@@ -60,7 +61,7 @@ beforeAll(async () => {
   const upstreamPort = await listen(upstream);
   const reservation = createServer(); const port = await listen(reservation); await close(reservation);
   temp = await mkdtemp(join(tmpdir(), 'knight-relay-test-'));
-  for (const file of ['relay/server.mjs', 'relay/transport-jupyter.mjs', 'public/places/SU_Outside2.jpg', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts']) {
+  for (const file of ['relay/server.mjs', 'relay/transport-jupyter.mjs', 'public/places/SU_Outside2.jpg', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts', 'src/timeMachine/quality.ts']) {
     const target = join(temp, file); await mkdir(dirname(target), { recursive: true }); await copyFile(resolve(file), target);
   }
   base = `http://127.0.0.1:${port}/api`;
@@ -73,6 +74,22 @@ beforeAll(async () => {
     relay.stdout!.on('data', chunk => { if (chunk.toString().includes('[relay] http')) { clearTimeout(timeout); resolve(); } });
   });
   vi.stubGlobal('window', { location: { origin: `http://127.0.0.1:${port}` } });
+}, 20000);
+
+it('maps every campus quality choice to the exact tested GPU preset and rejects unknown qualities before queueing', async () => {
+  const service = new HttpTimelineService(base);
+  const image = new File(['source'], 'campus.jpg', { type: 'image/jpeg' });
+  for (const preset of JOURNEY_QUALITIES) {
+    const submitted = await service.submit({ image, moment: 'snow', length: 'snapshot', quality: preset.id });
+    expect(queued.at(-1)).toMatchObject({ width: preset.width, height: preset.height, fps: 24, durationSeconds: 3,
+      bench: { size: [preset.width, preset.height], steps: preset.id === 'quick' ? 6 : 10, enhance: false }, timeline: { quality: preset.id } });
+    expect((await service.getStatus(submitted.jobId)).output).toMatchObject({ width: preset.width, height: preset.height });
+  }
+  const before = queued.length;
+  const form = new FormData(); form.set('image', image); form.set('moment', 'snow'); form.set('length', 'snapshot'); form.set('quality', '4k');
+  const invalid = await fetch(`${base}/timelines`, { method: 'POST', body: form });
+  expect(invalid.status).toBe(400); expect((await invalid.json()).error).toContain('quality');
+  expect(queued).toHaveLength(before);
 }, 20000);
 afterAll(async () => {
   if (relay && relay.exitCode === null) { const stopped = new Promise<void>(resolve => relay.once('exit', () => resolve())); relay.kill(); await stopped; }
@@ -87,8 +104,9 @@ it('keeps waypoint snapshots, Wall, source images, video seeking, and Free mode 
   const submitted = await timeline.submit({ image, moment: 'future', length: 'snapshot' });
   const job = await timeline.getStatus(submitted.jobId);
   expect(job).toMatchObject({ status: 'completed', shots: [{ phase: 'arrive', status: 'completed' }], output });
-  expect(queued[0]).toMatchObject({ mode: 'image', bench: { size: [640, 352], steps: 10 }, timeline: { moment: 'future', length: 'snapshot' } });
-  expect(queued[0].prompt).toContain('2125');
+  const snapshotRequest = queued.find(request => request.jobId === submitted.jobId)!;
+  expect(snapshotRequest).toMatchObject({ mode: 'image', bench: { size: [640, 352], steps: 10, enhance: false }, timeline: { moment: 'future', length: 'snapshot', quality: 'standard' } });
+  expect(snapshotRequest.prompt).toContain('2125');
   expect((await timeline.getWall())[0].id).toBe(submitted.jobId);
   const origin = new URL(base).origin;
   expect(await (await fetch(origin + job.beforeImageUrl)).text()).toBe('source-photo-fixture');
@@ -96,11 +114,12 @@ it('keeps waypoint snapshots, Wall, source images, video seeking, and Free mode 
   expect(media.status).toBe(206); expect(media.headers.get('content-type')).toBe('video/mp4'); expect((await media.arrayBuffer()).byteLength).toBe(32);
   await expect(timeline.submit({ image, moment: 'future', length: 'film' })).rejects.toThrow('Film');
   const preset = await timeline.submit({ place: 'student-union', view: 'outside-2', moment: 'future', length: 'snapshot' });
-  expect(queued[1]).toMatchObject({ mode: 'image', timeline: { place: 'Student Union' } });
-  expect(queued[1].prompt).toContain('brick plaza');
+  const presetRequest = queued.find(request => request.jobId === preset.jobId)!;
+  expect(presetRequest).toMatchObject({ mode: 'image', timeline: { place: 'Student Union' } });
+  expect(presetRequest.prompt).toContain('brick plaza');
   expect(Buffer.compare(Buffer.from(await (await fetch(origin + (await timeline.getStatus(preset.jobId)).beforeImageUrl!)).arrayBuffer()), await readFile('public/places/SU_Outside2.jpg'))).toBe(0);
   const studio = new HttpGenerationService(base);
   const free = await studio.submit({ mode: 'text', prompt: 'A purple campus at dusk.', settings: DEFAULT_SETTINGS });
   expect((await studio.getStatus(free.jobId)).output).toMatchObject(output);
-  expect(queued[2]).toMatchObject({ mode: 'text', width: 640, height: 352, fps: 24, durationSeconds: 3 });
+  expect(queued.find(request => request.jobId === free.jobId)).toMatchObject({ mode: 'text', width: 640, height: 352, fps: 24, durationSeconds: 3 });
 }, 20000);

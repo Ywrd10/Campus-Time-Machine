@@ -35,7 +35,7 @@ export function useTimeline() {
     try {
       const { jobId } = await timelineService.submit(request, abort.signal);
       abort.signal.throwIfAborted();
-      const ticket: JourneyTicket = { jobId, provider: isMockProvider ? 'mock' : 'http', place: request.place, view: request.view, placeName, moment: request.moment, length: request.length };
+      const ticket: JourneyTicket = { jobId, provider: isMockProvider ? 'mock' : 'http', place: request.place, view: request.view, placeName, moment: request.moment, length: request.length, quality: request.quality };
       setStorageAvailable(storeValue(TICKET_KEY, ticket));
       setState({ status: 'processing', ticket });
       await watch(ticket, abort);

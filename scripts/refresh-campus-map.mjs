@@ -84,11 +84,11 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAP_SIZE.wid
 <desc>North-up map from real OpenStreetMap road, footpath, building and water geometry.</desc>
 <metadata>© OpenStreetMap contributors; ODbL-1.0 https://opendatacommons.org/licenses/odbl/1-0/ ; ${escapeXml(osmUrl)} ; extracted ${fetched}</metadata>
 <style>
-.greenery{fill:#232032;stroke:#383042;stroke-width:.6}.parking{fill:#272130;stroke:#493a57;stroke-width:1}
-.water{fill:#33344f;stroke:#8177ab;stroke-width:1.5}.paths{fill:none;stroke:#6c5b7a;stroke-width:1.4;opacity:.65}
-.roads{fill:none;stroke:#665473;stroke-width:8;stroke-linecap:round;stroke-linejoin:round}.roads .service{stroke:#4a3d56;stroke-width:4}
-.buildings{fill:#332b40;stroke:#95809f;stroke-width:1}.labels{fill:#d5c4e2;font:11px Consolas,monospace;letter-spacing:1px;paint-order:stroke;stroke:#191320;stroke-width:3px;stroke-linejoin:round}
-</style><rect width="${MAP_SIZE.width}" height="${MAP_SIZE.height}" fill="#16131d"/>
+.greenery{fill:#151515;stroke:#2b2b2b;stroke-width:.6}.parking{fill:#1d1d1d;stroke:#3d3b34;stroke-width:1}
+.water{fill:#262626;stroke:#61615a;stroke-width:1.5}.paths{fill:none;stroke:#736b53;stroke-width:1.4;opacity:.65}
+.roads{fill:none;stroke:#545247;stroke-width:8;stroke-linecap:round;stroke-linejoin:round}.roads .service{stroke:#3a3a35;stroke-width:4}
+.buildings{fill:#252525;stroke:#737064;stroke-width:1}.labels{fill:#cfc6aa;font:11px Consolas,monospace;letter-spacing:1px;paint-order:stroke;stroke:#090909;stroke-width:3px;stroke-linejoin:round}
+</style><rect width="${MAP_SIZE.width}" height="${MAP_SIZE.height}" fill="#090909"/>
 ${shapes}<g class="labels">${labels}</g></svg>\n`;
 await mkdir(new URL('../public/maps/', import.meta.url), { recursive: true });
 await writeFile(new URL('../public/maps/ucf-campus.svg', import.meta.url), svg);

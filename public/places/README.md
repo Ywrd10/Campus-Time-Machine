@@ -12,4 +12,5 @@ New places also need a pin in `src/timeMachine/mapData.ts`. Avoid recognizable f
 | HS1 | Health Sciences I | RES | Research I |
 | JOHN | John T. Washington Center | SU | Student Union |
 
-Snapshots render at 640×352, so the worker center-crops portrait photos to the middle band.
+Snapshots render at 640×352 (Quick / Standard) or 864×480 (High Detail), so the worker center-crops
+portrait photos to the middle band.
