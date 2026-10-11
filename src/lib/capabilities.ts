@@ -12,24 +12,10 @@ export const DURATIONS = [2, 3, 5];
 // Denoising steps per model choice. 6 steps is ~25% faster but the audio comes out ~9 dB quieter.
 export const STEPS: Record<Model, number> = { 'k6-lite-fast': 6, 'k6-lite-quality': 10 };
 const DIMENSIONS: Record<Resolution, [number, number]> = { '352p': [640, 352], '480p': [864, 480] };
-// Measured pipeline seconds (denoise + decode, excluding ~5–16 s prompt expansion and export).
-const MEASURED: Record<string, number> = {
-  '352p/2/10': 36, '352p/3/6': 37, '352p/3/10': 49, '352p/5/10': 93,
-  '480p/2/10': 69, '480p/3/6': 83, '480p/3/10': 110, '480p/5/10': 223,
-};
 
 export function dimensions(settings: Pick<GenerationSettings, 'resolution' | 'aspectRatio'>): [number, number] {
   const [w, h] = DIMENSIONS[settings.resolution];
   return settings.aspectRatio === '16:9' ? [w, h] : [h, w];
-}
-export function allowedDurations(_settings: GenerationSettings): number[] {
-  return DURATIONS;
-}
-export function normalizeSettings(settings: GenerationSettings): GenerationSettings {
-  return { ...settings, duration: DURATIONS.includes(settings.duration) ? settings.duration : DEFAULT_SETTINGS.duration };
-}
-export function estimatedSeconds(settings: GenerationSettings): number | undefined {
-  return MEASURED[`${settings.resolution}/${settings.duration}/${STEPS[settings.model]}`];
 }
 export function validateRequest(request: GenerationRequest): string | null {
   const s = request.settings;

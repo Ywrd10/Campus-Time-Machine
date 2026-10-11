@@ -1,11 +1,11 @@
 # Backend API contract
 
-The HTTP contract between the frontend and `relay/server.mjs`. `src/services/generation.ts` (Free mode) and
-`src/services/timeline.ts` (Campus Time Machine) are the only places that call it; if a backend uses different
-routes or field names, update those adapters alone. The UI consumes the `GenerationService` interface in
-`src/lib/types.ts`.
+The HTTP contract between the frontend and `relay/server.mjs`. `src/services/timeline.ts` (Campus Time Machine)
+is what the UI calls; `src/services/generation.ts` holds the direct-generation adapter (no UI, kept for scripts
+and the relay integration test) and the shared `downloadOutput`/`isMockProvider` helpers. If a backend uses
+different routes or field names, update those adapters alone.
 
-## Free mode: `/api/generations`
+## Direct generation: `/api/generations` (no UI)
 
 `POST /api/generations` accepts multipart FormData:
 
@@ -78,8 +78,8 @@ templates. `src/timeMachine/quality.ts` is shared by the UI and relay. All Snaps
 
 The relay checks each preset against `src/lib/capabilities.ts` and forwards its exact `bench.size` and
 `bench.steps` to the existing worker. Unknown quality IDs receive HTTP 400 before queueing. Old callers that omit
-quality keep their previous Standard preset. Film is rejected and no longer exposed in the UI. The legacy
-`/api/generations` adapter remains available for backend compatibility; Free mode is no longer mounted.
+quality keep their previous Standard preset. Film is rejected and no longer exposed in the UI. The
+`/api/generations` route remains available for direct text/image jobs; no UI calls it.
 
 ## Other relay routes
 
@@ -89,7 +89,7 @@ quality keep their previous Standard preset. Film is rejected and no longer expo
 
 ## Client behavior
 
-- Polling (`src/lib/pollJob.ts`, shared by both workspaces): every 800 ms, aborts on reset/unmount, prevents
+- Polling (`src/lib/pollJob.ts`): every 800 ms, aborts on reset/unmount, prevents
   duplicate submissions, stops after 15 minutes. **Stop waiting** stops local polling; it doesn't cancel the job.
 - Each HTTP request has a 30-second timeout. A failed request ends the local job flow with an error and allows retry.
 - Runtime guards reject invalid status/output shapes and executable media URL protocols.

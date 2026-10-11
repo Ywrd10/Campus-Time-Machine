@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedDurations, DEFAULT_SETTINGS, dimensions, estimatedSeconds, normalizeSettings, RESOLUTIONS, STEPS, validateRequest } from '../src/lib/capabilities';
+import { DEFAULT_SETTINGS, dimensions, STEPS, validateRequest } from '../src/lib/capabilities';
 import { HttpGenerationService, MockGenerationService } from '../src/services/generation';
 import type { GenerationRequest } from '../src/lib/types';
 
@@ -10,14 +10,6 @@ describe('Tested Kandinsky 6 Lite presets', () => {
     expect(DEFAULT_SETTINGS.fps).toBe(24);
     expect(DEFAULT_SETTINGS.duration).toBe(3);
     expect(STEPS[DEFAULT_SETTINGS.model]).toBe(10);
-    expect(estimatedSeconds(DEFAULT_SETTINGS)).toBe(49);
-  });
-  it('offers 2, 3, and 5 seconds and clamps anything else to the default', () => {
-    for (const resolution of RESOLUTIONS) {
-      const settings = { ...DEFAULT_SETTINGS, resolution, duration: 6 };
-      expect(allowedDurations(settings)).toEqual([2, 3, 5]);
-      expect(normalizeSettings(settings).duration).toBe(3);
-    }
   });
   it('reverses portrait dimensions and validates prompts/settings before submitting', () => {
     expect(dimensions({ ...DEFAULT_SETTINGS, aspectRatio: '9:16', resolution: '480p' })).toEqual([480, 864]);

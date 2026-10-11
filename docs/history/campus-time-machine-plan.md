@@ -2,7 +2,7 @@
 
 Status: **historical design plan.** The implemented UI uses Kandinsky 6 Lite on AMD, Snapshot-only journeys,
 three quality presets, and a combined campus map / Journey Wall. Film and Free mode have been removed from
-the UI. Current behavior and contracts are in [frontend.md](frontend.md) and [api.md](api.md); the remainder
+the UI. Current behavior and contracts are in [frontend.md](../frontend.md) and [api.md](../api.md); the remainder
 of this document preserves the original planning context.
 
 ## Pitch

@@ -97,7 +97,7 @@ afterAll(async () => {
   if (temp && dirname(temp) === tmpdir() && basename(temp).startsWith('knight-relay-test-')) await rm(temp, { recursive: true, force: true });
 });
 
-it('keeps waypoint snapshots, Wall, source images, video seeking, and Free mode connected to the relay', async () => {
+it('keeps waypoint snapshots, Wall, source images, video seeking, and direct generations connected to the relay', async () => {
   expect(await (await fetch(`${base}/health`)).json()).toMatchObject({ relay: 'ok', worker: 'online' });
   const timeline = new HttpTimelineService(base);
   const image = new File(['source-photo-fixture'], 'campus.jpg', { type: 'image/jpeg' });

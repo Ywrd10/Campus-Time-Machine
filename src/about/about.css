@@ -5,7 +5,6 @@
 .machine-nav a[aria-current=page] { color: var(--gold-soft); border-color: var(--ui-border-strong); background: var(--ui-selected); }
 .about-workspace { max-width: 1120px; margin: auto; padding: 32px 28px 0; }
 .about-team { padding: 0 0 32px; }
-.about-workspace .eyebrow { font-size: 11px; }
 .about-section-heading h1, .about-section-heading h2 { margin: 0; font-size: 27px; line-height: 1.3; font-weight: 450; letter-spacing: -.7px; }
 .about-team-intro { color: var(--ui-text-muted); font-size: 13px; line-height: 1.8; margin: 13px 0 21px; }
 .about-team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }

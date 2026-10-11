@@ -120,7 +120,7 @@ npm test
 npm run build
 ```
 
-The 27-test suite covers settings, request validation, generation and timeline lifecycle, reload persistence, map controls, progress states, and frontend-to-relay integration using a local Jupyter fixture. The production build runs strict TypeScript checks. Live AMD generation, archived MP4 seeking, and the shared Wall have also been exercised; see the [verification log](docs/verification.md).
+The test suite covers settings, request validation, generation and timeline lifecycle, reload persistence, map controls, progress states, and frontend-to-relay integration using a local Jupyter fixture. The production build runs strict TypeScript checks. Live AMD generation, archived MP4 seeking, and the shared Wall have also been exercised; see the [verification log](docs/verification.md).
 
 The mounted studio creates single three-second image-to-video Snapshots. The backend also retains a text-to-video endpoint. Audio-input generation, multi-shot films, and super-resolution are outside the current demo. Output varies with the photo and moment; large portrait photos are resized and center-cropped. Quick renders can have quieter audio. The automated relay fixture does not currently test the Hugging Face upload and recovery paths.
 
@@ -139,3 +139,4 @@ Kandinsky is developed by [Kandinsky Lab](https://huggingface.co/kandinskylab). 
 - [HTTP API](docs/api.md)
 - [Verification log](docs/verification.md)
 - [AMD instance operations and lessons learned](AGENTS.md)
+- History: [original design plan](docs/history/campus-time-machine-plan.md), [LTX-2.5 attempt](docs/history/ltx-2.5.md)

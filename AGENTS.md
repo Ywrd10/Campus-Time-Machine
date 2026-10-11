@@ -3,27 +3,27 @@
 Hackathon project generating video with synchronized audio (text→video and image→video) on an
 **AMD Radeon Pro W7900D** (48 GB, gfx1100, ROCm). The model is **Kandinsky 6.0 Video Lite (distilled)** since
 2026-10-10 ~19:30 UTC; it replaced Lightricks **LTX-2.5** after LTX's host-RAM use killed two instances
-(history below). Presentation slot is 6 minutes including Q&A, so a live clip must take well under a minute.
+(`docs/history/ltx-2.5.md`). Presentation slot is 6 minutes including Q&A, so a live clip must take well under a minute.
 
-## Current status (2026-10-10, ~20:30 UTC)
+## Current status (2026-10-11)
 
-Frontend polish update: the campus map and Journey Wall are now the only mounted workspace; Free mode and
-Film selectors have been removed. Snapshot quality is selectable via `src/timeMachine/quality.ts` (Quick:
-640×352 / 6 steps; Standard default: 640×352 / 10 steps; High Detail: 864×480 / 10 steps; all 24 FPS / 3 s).
-The relay validates this optional `quality` field and forwards the preset to the existing worker. Older
-callers default to Standard. The statements below about the original fixed Snapshot and Free mode describe
-previous integrations; current UI behavior is in `docs/frontend.md` and `docs/api.md`.
-
+- **UI:** the campus map + Journey Wall (`src/timeMachine/`) is the only workspace, plus an About page. Free mode
+  and Film were removed from the UI. Snapshot quality presets live in `src/timeMachine/quality.ts` (Quick:
+  640×352 / 6 steps; Standard, the default: 640×352 / 10 steps; High Detail: 864×480 / 10 steps; all 24 FPS / 3 s).
+  The relay validates the optional `quality` field (missing → Standard) and forwards `bench: {size, steps}` to the
+  worker; `src/lib/capabilities.ts` is the list of tested presets, shared by browser and relay (Node ≥ 22.18 type
+  stripping). `/api/generations` (direct text/image jobs) still exists in the relay but has no UI. Current behavior
+  is in `docs/frontend.md` and `docs/api.md`.
+- **Places:** ten preset places with team photos (`public/places/<ABBR>_<Inside|Outside>[n].jpg`, several views
+  per place, picked via `view`). All are portrait 3:4, so the 640×352 Snapshot center-crops them.
 - **Remote storage** (2026-10-11 ~03:55 UTC): journeys + Wall live in the public HF Storage Bucket
   `brocw/ucf-time-machine` (`relay/storage.mjs`; keys `HF_BUCKET`/`HF_S3_KEY_ID`/`HF_S3_SECRET` in `relay/.env.local`).
   Verified: backfill of the 3 `wall.json` journeys, a fresh Quick journey end to end, byte-identical MP4, Range 206.
-  `resolve` URLs 302 to the CDN (use `curl -L`). `relay/wall.pre-moments-rework.json` was not migrated.
-- Instance `rgapi-hackathon-22798-4f66cae3` (third one under that id) is up. **`worker_k6.py` is running and idle**
+  `resolve` URLs 302 to the CDN (use `curl -L`). `outputs/wall.pre-moments-rework.json` (old Wall index) was not migrated.
+- **Instance** `rgapi-hackathon-22798-4f66cae3` (third one under that id) is up. **`worker_k6.py` is running and idle**
   on `/workspace/k6lite` (`kandinskylab/Kandinsky-6.0-Lite-distill-5s-Diffusers`, 25 GB; downloaded in 6 min).
-  LTX-2.5 is not on this instance.
 - Whole pipeline resident on the GPU: 24.6 GB idle, ~29 GB peak per job. **Host RAM ~2.5 GB** (LTX: 20–45 GB).
   Worker loads in 14 s. One pipeline serves text and image modes.
-- Verified: text→video and image→video with audio (astronaut i2v: frame 0 matches the input, audio −35 dB).
 - Speed (pipeline call, excl. prompt expansion and MP4 export; full table + clips in `outputs/k6/README.md`):
 
   | Size | Frames | Steps | Gen |
@@ -36,19 +36,11 @@ previous integrations; current UI behavior is in `docs/frontend.md` and `docs/ap
   | 864×480 | 121 (5 s) | 10 | 223–233 s |
 
   Frame count dominates (attention is quadratic in tokens); steps matter less. 4–6 steps look close to 10 but the
-  audio gets quieter (−31 → −41 dB). Live-demo candidate: 640×352, 2–3 s, 6–10 steps (≈35–50 s).
-- **Frontend connected (branch `amd-backend-relay`, main merged in):** `src/lib/capabilities.ts` offers only the
-  tested presets: 640×352 / 864×480 (either orientation), 24 fps, 2/3/5 s, Fast = 6 steps / Quality = 10 steps.
-  The relay imports that file (Node ≥ 22.18 type stripping) and forwards `bench: {size, steps}` to the worker.
-- Teammate's **Campus Time Machine** view (`src/timeMachine/`) is served by the relay: `/api/timelines` (Snapshot
-  only: one i2v shot, 640×352, 3 s, 10 steps, prompt from `moments.ts`), `/api/wall` (index in `relay/wall.json`).
-  Film (three chained shots) is disabled in HTTP mode until the worker chains shots. Ten preset places with team
-  photos (`public/places/<ABBR>_<Inside|Outside>[n].jpg`, several views per place, picked via `view`). All are
-  portrait 3:4, so the 640×352 Snapshot center-crops them.
-- **UI → relay → live worker verified** (2026-10-10 ~20:48 UTC): Free-mode text→video, 640×352, 3 s, 10 steps, 48 s gen,
-  plays in the browser. Image→video through the relay works (2560×1707 photo, 52 s) with the resize fix deployed.
-  Time Machine Snapshot verified live (2026-10-10 ~22:57 UTC): uploaded photo, `snow`, 52.6 s gen, peak 28.7 GB;
-  `finalFrameUrl`/shot thumbnail/wall thumbnail served and cached, `last.png` matches the MP4's last frame.
+  audio gets quieter (−31 → −41 dB).
+- **Verified live** (2026-10-10): text→video and image→video with audio (astronaut i2v: frame 0 matches the input);
+  UI → relay → worker for free text (48 s) and image→video (2560×1707 photo, 52 s, after the resize fix); Time
+  Machine Snapshot with an uploaded photo (`snow`, 52.6 s, peak 28.7 GB) with `finalFrameUrl`/shot thumbnail/wall
+  thumbnail served and cached, and `last.png` matching the MP4's last frame.
 
 ## The instance
 - Dashboard: https://radeon-global.anruicloud.com/ → "Open notebook" (sets the access cookie; direct
@@ -171,36 +163,17 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
 - Upload code inside ``String.raw`...` `` so `\n` escapes survive, and avoid `${...}` in the payload (template
   interpolation). Verify every upload with md5 against `instance_scripts/`. Hand-copying base64 corrupted an image.
 
-## LTX-2.5 history (2026-10-10, superseded)
-- Worked: 640×384×49 t2v ~72–92 s (smoke.py) / 85 s per job via `worker.py` (FP8 storage, 27 s denoise); i2v via
-  `LTX2ImageToVideoPipeline` 113 s per job, peak VRAM 27.9 GB. Samples: `outputs/t2v_ball_fp8.mp4`,
-  `outputs/i2v_astronaut.mp4` (silent audio, cause unconfirmed).
-- Costs: 77 GB download (~35 min; `redownload.py` skips `transformer_full`), peak RAM ~51/59 GB in `smoke.py`.
-- `worker.py` host RAM grew on every t2v↔i2v switch (re-running `enable_model_cpu_offload()` over shared modules):
-  20 → 36.8 → 45 GB, then the instance died mid-job (~19:15 UTC). Unfixed; don't revive `worker.py` without fixing it.
-- LTX-specific helpers (no longer in `instance_scripts/`): `smoke.py`, `redownload.py`, `gemma_loader.py` (loads Gemma
-  straight to GPU, +0.4 GB RAM), `worker.py`.
-
 ## Next steps
-0. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
-   `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker runs
-   the repo's `worker_k6.py` (PID 11238 since ~00:02 UTC 2026-10-11, math-SDPA text encoder + expansion cleanup; backup of
+1. **Run the UI against the live instance:** refresh `relay/.env.local`, `npm run relay`,
+   `VITE_GENERATION_PROVIDER=http npm run dev`, and run a Time Machine Snapshot. The worker runs the repo's
+   `worker_k6.py` (PID 11238 since ~00:02 UTC 2026-10-11, math-SDPA text encoder + expansion cleanup; backup of
    the eager version at `/workspace/worker_k6.eager.bak.py`; older PIDs are harmless zombies).
-1. ~~Moment strength~~ (done 2026-10-10 on `docs-cleanup`, 65 test clips): every moment now adds something moving
-   through the unchanged photo (whole-scene restyles didn't take in 3 s), and the relay sends timeline prompts with
-   `enhance: false`. Opening day 1968 → Homecoming (balloons), Nature reclaims → Wild Florida (alligator + heron),
-   Medieval → Charge of the Knights, Hurricane → tornado funnel in the distance. Picks in `outputs/moments/`. Still
-   weak: Hurricane at the Reflecting Pond (no funnel), Snow on sky-heavy photos, 2125 indoors (drones small).
-2. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
-   `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
-3. ~~Merge main's real campus map~~ (done 2026-10-11 on `docs-cleanup`): ten pins anchored by UCF IDs, Cypress Dome
-   hand-anchored to its boardwalk (OSM way 334887933) in `scripts/refresh-campus-map.mjs`, side labels for crowded
-   pins in `timeMachine.css`. Main's README was **not** taken: PR #8 re-added the old long README with stale claims;
-   ours (slim) was kept with a map link. On a 390 px phone, the Health Sciences I / Engineering II labels run past
-   the right edge until panned.
-4. **Time Machine:** worker-side Film chaining (last frame → next
-   shot, stitch with PyAV) and a `finalFrameUrl` for the before/after slider.
-5. Decide the project angle — the model's odd physics (balls floating off tables, duplicating) could anchor a
-   "what does the world model get wrong?" demo.
+2. **Weak moments:** every moment adds something moving through the unchanged photo, and timeline prompts go out
+   with `enhance: false` (picks from 65 test clips in `outputs/moments/`). Still weak: Hurricane at the Reflecting
+   Pond (no funnel), Snow on sky-heavy photos, 2125 indoors (drones small).
+3. **Real-time demo tuning:** try 512×288 and 1–2 s clips, `pipe.transformer.compile_repeated_blocks(fullgraph=True)`.
+   Pre-render backup clips.
+4. **Map:** on a 390 px phone, the Health Sciences I / Engineering II labels run past the right edge until panned.
+5. **Film (removed from the UI):** would need worker-side chaining (last frame → next shot, stitch with PyAV).
 6. Optional: Kandinsky 6 VSR (super-resolution) needs flex attention + `torch.compile` — untested on ROCm.
 7. Clean scratch files on `/workspace`. After the hackathon: revoke any HF token, destroy the instance.

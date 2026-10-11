@@ -90,10 +90,6 @@ function isOutput(value: unknown): value is Mp4Output {
   try { if (!['http:', 'https:'].includes(new URL(value.url, window.location.origin).protocol)) return false; } catch { return false; }
   return ['width', 'height', 'fps', 'durationSeconds'].every(key => typeof value[key] === 'number' && Number.isFinite(value[key]) && Number(value[key]) > 0);
 }
-export const generationService: GenerationService = isMockProvider
-  ? new MockGenerationService(import.meta.env.VITE_MOCK_FAIL === 'true')
-  : new HttpGenerationService(import.meta.env.VITE_API_BASE_URL || '/api');
-
 export async function downloadOutput(output: Pick<Mp4Output, 'url' | 'filename'>): Promise<void> {
   const response = await fetch(output.url);
   if (!response.ok) throw new Error('Download failed. Please try again.');

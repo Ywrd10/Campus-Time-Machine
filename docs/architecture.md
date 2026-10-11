@@ -3,8 +3,9 @@
 How the frontend reaches the Kandinsky 6.0 Video Lite worker on the AMD Radeon Cloud instance. Instance facts,
 current numbers, and gotchas live in `AGENTS.md`; the HTTP contract the relay serves is in [api.md](api.md).
 
-Status (2026-10-10): **worker, relay, and frontend connected.** Free-mode text→video and image→video and Time
-Machine Snapshot have all run through the full UI → Vite proxy → relay → worker path on the live instance.
+Status (2026-10-11): **worker, relay, and frontend connected.** Time Machine Snapshots (and, before the UI was
+narrowed to the campus map, free text→video and image→video) have run through the full UI → Vite proxy → relay
+→ worker path on the live instance.
 
 ## The constraint
 
@@ -90,10 +91,10 @@ The cost is a second or two of polling latency, which doesn't matter next to a ~
 
 ## Mapping UI presets to what actually runs
 
-The current campus UI has no Free mode or Film selector. Snapshot quality IDs (`quick`, `standard`, `high`)
+The campus UI offers Snapshot only. Snapshot quality IDs (`quick`, `standard`, `high`)
 come from `src/timeMachine/quality.ts`, shared with the relay. They map to 640×352 / 6 steps, 640×352 / 10 steps,
 and 864×480 / 10 steps respectively, all at 24 FPS for 3 seconds. The relay validates them through the same
-`withPreset` path as the retained legacy `/api/generations` endpoint. Omitting quality preserves Standard.
+`withPreset` path as the direct `/api/generations` endpoint. Omitting quality preserves Standard.
 No GPU worker changes or restarts are needed.
 
 The relay validates the request against `src/lib/capabilities.ts` and adds `bench: {size: [w, h], steps}` to
@@ -120,4 +121,4 @@ The relay validates the request against `src/lib/capabilities.ts` and adds `benc
 - Queue position in `status.json` (`queued` with `progress: 0`) for the demo.
 - Time Machine Film: worker-side chaining (each shot starts from the previous shot's last frame) and stitching.
 - The previous LTX-2.5 `worker.py` is retired (its host RAM grew until the instance died) and isn't in this repo;
-  see the LTX history in `AGENTS.md`.
+  see [history/ltx-2.5.md](history/ltx-2.5.md).

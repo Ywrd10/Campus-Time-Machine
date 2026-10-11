@@ -1,4 +1,3 @@
-export type GenerationMode = 'text' | 'image' | 'audio';
 export type Model = 'k6-lite-fast' | 'k6-lite-quality';
 export type Resolution = '352p' | '480p';
 export type AspectRatio = '16:9' | '9:16';

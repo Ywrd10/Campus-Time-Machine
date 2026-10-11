@@ -204,7 +204,7 @@ async function readOutput(jobId, file) {
 }
 
 // Uploads a completed journey's files and marks its record completed. Idempotent; jobs without a record
-// (Free mode) are left alone.
+// (direct /api/generations jobs) are left alone.
 function archiveJourney(jobId, job) {
   if (!storage || archived.has(jobId)) return Promise.resolve();
   if (!archiving.has(jobId)) archiving.set(jobId, (async () => {

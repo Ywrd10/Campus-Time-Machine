@@ -9,7 +9,7 @@ function wait(ms: number, signal: AbortSignal) {
   });
 }
 
-// Shared by Free mode and timeline jobs. Progress and shot states come from the service.
+// Polls a job until it finishes. Progress and shot states come from the service.
 export async function pollJob<T extends JobStatusResponse>(
   getStatus: () => Promise<T>, signal: AbortSignal, onUpdate: (job: T) => void,
 ) {

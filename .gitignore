@@ -8,3 +8,4 @@ dist/
 outputs/
 relay/wall.json
 relay/cache/
+__pycache__/
