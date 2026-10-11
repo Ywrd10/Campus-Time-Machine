@@ -130,6 +130,11 @@ Drop a job folder into `/workspace/jobs/<id>/` (media first, `request.json` **la
   eager attention asked for 15.8 GB at the vision encoder; the same photo at 1024×683 ran fine (52 s). The repo's
   `worker_k6.py` shrinks images to `MAX_IMAGE_SIDE` (1024) before use. Deployed ~20:57 UTC; the full-size photo then ran
   in 52 s (peak 28.7 GB).
+- **"Jumping" clips have two causes** (found 2026-10-10): (1) prompt expansion adds camera moves ("the camera pans slowly
+  to the right"), and the shot wanders off the photo; (2) when the photo has no room for the requested effect (ground snow
+  in a sky-filled shot), the model dissolves to a different view after ~1–2 s. A camera move toward it (Snow tilts
+  down) avoids it. Lightning flashes also read as cuts. Hard cuts show up as a frame-diff spike (max ≫ median of
+  mean |Δ| between 80×44 grey frames); slow dissolves don't, so look at the frames too. Free mode still expands prompts.
 - **A VRAM OOM is harmless** (Python exception; the worker marks the job failed and continues).
 - **Egress proxy:** `github.com` blocked (use `codeload.github.com/.../tar.gz/...` for pip), pip uses a mirror,
   `huggingface.co` returns proxy 503 → use `HF_ENDPOINT=https://hf-mirror.com`. The mirror throws read timeouts on
@@ -169,9 +174,11 @@ on top of it, `putFile(path, text)` (Contents API `PUT`, paths relative to `/wor
    `VITE_GENERATION_PROVIDER=http npm run dev`; try text, image, and a Time Machine Snapshot. The worker runs
    the repo's `worker_k6.py` (PID 11238 since ~00:02 UTC 2026-10-11, math-SDPA text encoder + expansion cleanup; backup of
    the eager version at `/workspace/worker_k6.eager.bak.py`; older PIDs are harmless zombies).
-1. **Moment strength:** with clean embeddings, snow and 2125 (a drone) show up and places stay recognizable, but
-   hurricane is mostly in the audio and nature-reclaims barely changes a library interior in 3 s. Try stronger arrive
-   wording, 5 s, or the Film chain. Re-check speed/quality numbers above: they were measured with eager embeddings.
+1. ~~Moment strength~~ (done 2026-10-10 on `docs-cleanup`, 65 test clips): every moment now adds something moving
+   through the unchanged photo (whole-scene restyles didn't take in 3 s), and the relay sends timeline prompts with
+   `enhance: false`. Opening day 1968 → Homecoming (balloons), Nature reclaims → Wild Florida (alligator + heron),
+   Medieval → Charge of the Knights, Hurricane → tornado funnel in the distance. Picks in `outputs/moments/`. Still
+   weak: Hurricane at the Reflecting Pond (no funnel), Snow on sky-heavy photos, 2125 indoors (drones small).
 2. **Real-time demo tuning:** pick the live preset (640×352, 2–3 s, 6–10 steps), try 512×288 and 1–2 s clips,
    `pipe.transformer.compile_repeated_blocks(fullgraph=True)`, and expansion off/on. Pre-render backup clips.
 3. ~~Merge main's real campus map~~ (done 2026-10-11 on `docs-cleanup`): ten pins anchored by UCF IDs, Cypress Dome

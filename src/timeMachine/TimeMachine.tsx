@@ -101,7 +101,6 @@ export function TimeMachine({ active }: { active: boolean }) {
                   : <div className="scene-coordinate"><span>FRAME 00 / PRESENT DAY</span><ScanLine size={17} /></div>}
             </div>}
           <TimelineProgress job={journey.job} film={film} /><div className="moment-description"><span className="small-label">{arrived ? 'ARRIVED AT' : 'NEXT STOP'}</span><strong>{moment.label}</strong><p>{moment.caption}</p></div>
-          {moment.id === 'opening-day' && <p className="history-note">Imagined 1968 styling, not a historical reconstruction. <a href="https://library.ucf.edu/about/departments/special-collections-university-archives/university-history/" target="_blank" rel="noreferrer">UCF history ↗</a></p>}
           {!journey.storageAvailable && <p className="field-error" role="status">Browser storage is unavailable. Keep this page open to follow this journey.</p>}
           <span className="sr-only" role="status" aria-live="polite">{arrived ? 'Journey complete. Your video is ready.' : busy ? 'Your journey is processing.' : journey.status === 'failed' ? 'The journey failed.' : 'Ready to start a journey.'}</span>
         </section>

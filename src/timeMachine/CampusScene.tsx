@@ -7,7 +7,7 @@ export function CampusScene({ kind = 'pond', theme = 'today', className = '' }: 
   const palettes: Record<string, [string, string, string, string]> = {
     today: ['#294d50', '#8aaf98', '#b3b699', '#293e39'],
     future: ['#1b3a46', '#649c92', '#94bab5', '#204742'],
-    past: ['#665346', '#c1a175', '#c3ae85', '#51483b'],
+    homecoming: ['#2b2a3a', '#c9a24a', '#b9b08c', '#2f3f37'],
     storm: ['#222d3b', '#5b6d77', '#82938f', '#24363a'],
     rocket: ['#243343', '#aa9976', '#adad91', '#2f4541'],
     nature: ['#234039', '#859b60', '#87976b', '#294b36'],
@@ -51,8 +51,9 @@ export function CampusScene({ kind = 'pond', theme = 'today', className = '' }: 
     {theme === 'rocket' && <><path d="M592 121L630 38" stroke="#f5d9a0" strokeWidth="4" /><path d="M590 124L561 190" stroke="#c5c5b7" strokeWidth="12" opacity=".35" /></>}
     {theme === 'storm' && <g stroke="#bfd7d7" opacity=".26">{Array.from({ length: 28 }, (_, i) => <path key={i} d={`M${i * 32} 60l-30 150m0 60l-30 140`} />)}</g>}
     {theme === 'snow' && <g fill="#e0eae6">{Array.from({ length: 40 }, (_, i) => <circle key={i} cx={(i * 137) % 800} cy={(i * 73) % 450} r="2" />)}<path d="M175 150H625V158H175z" /></g>}
-    {theme === 'nature' && <g fill="none" stroke="#416848" strokeWidth="12"><path d="M214 282Q275 174 290 155M580 275Q524 219 559 155M370 278Q352 188 397 164" /></g>}
-    {theme === 'medieval' && <g fill="#925f45"><path d="M290 174h20v64l-10 -9 -10 9ZM490 174h20v64l-10 -9 -10 9Z" /></g>}
+    {theme === 'homecoming' && <g>{Array.from({ length: 14 }, (_, i) => <g key={i} transform={`translate(${60 + ((i * 211) % 680)} ${50 + ((i * 97) % 190)})`}><path d="M0 18Q2 30 -2 42" stroke="#d8cfa8" fill="none" opacity=".6" /><ellipse rx="11" ry="14" fill={i % 2 ? '#d9b14a' : '#1d1d24'} stroke="#e8d8a0" strokeWidth="1" /></g>)}</g>}
+    {theme === 'nature' && <g fill="#3c5a3a" stroke="#22382a" strokeWidth="2"><path d="M300 352Q340 334 420 338Q470 340 520 352Q470 360 420 362Q350 366 300 352ZM300 352Q270 350 238 356Q268 346 300 346Z" /><path d="M560 300v-46M560 256q22 -6 26 -24" fill="none" stroke="#e6e2d4" strokeWidth="4" /></g>}
+    {theme === 'medieval' && <g><path d="M300 330L520 222" stroke="#d6d2c4" strokeWidth="4" /><path d="M520 222L586 238L522 254Z" fill="#d9b14a" /><path d="M520 222L586 238L522 230Z" fill="#1d1d24" /><path d="M262 360q30 -46 78 -36l26 -28q14 18 -4 38q22 22 6 56H270Z" fill="#e6e2d4" opacity=".85" /></g>}
     <path d="M0 449H800" stroke="#88b9a1" opacity=".35" />
   </svg>;
 }

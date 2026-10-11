@@ -24,10 +24,9 @@ map. The Journey Wall is on the same page, with playback, filtering, and downloa
   (`src/timeMachine/places.ts`). The picker under the place photo switches views; the relay receives
   `place` + `view` and uses that photo and its description in the prompt. An upload still overrides both.
 - The before/after slider compares the source photo (`beforeImageUrl`) with the clip's last frame (`finalFrameUrl`).
-- Opening day uses October 7, 1968, verified against
-  [UCF University Archives](https://library.ucf.edu/about/departments/special-collections-university-archives/university-history/).
-  Its scene is an imagined period treatment of a current photo, not a historical reconstruction. Moment templates
-  avoid official logos, mascots, and seals.
+- Every moment adds something that moves through the unchanged photo (drones, balloons, a rocket, a knight, an
+  alligator, rain, snow) rather than restyling it, and the relay sends the prompts verbatim (no expansion). See the
+  comment in `src/timeMachine/moments.ts`. Moment templates avoid official logos, mascots, and seals.
 
 ### Local state
 

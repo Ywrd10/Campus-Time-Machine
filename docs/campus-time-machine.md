@@ -15,7 +15,7 @@ place consistent while simulating what happens to it — water, weather, light, 
 ① PLACE                     ② MOMENT                       ③ TRAVELING              ④ ARRIVED
 ┌────────────────────┐      ┌──────────────────────────┐   ┌──────────────────┐    ┌──────────────────────────┐
 │ [Reflecting Pond]  │      │ Reflecting Pond, today   │   │ ◐ now → 2125      │    │ ▶ film (with audio)      │
-│ [Student Union]    │  →   │ ○ Opening day, 1968      │ → │ [✓ now][◐ shift]  │ →  │ ⟷ before/after slider    │
+│ [Student Union]    │  →   │ ○ Homecoming             │ → │ [✓ now][◐ shift]  │ →  │ ⟷ before/after slider    │
 │ [Library]          │      │ ● 2125                   │   │ [· arrive]        │    │ [Try another moment]     │
 │ [Memory Mall] ...  │      │ ○ Hurricane landfall     │   │ ~6 min · safe to  │    │ [Download] [Add to Wall] │
 │ (+ upload a photo) │      │ ○ Rocket launch ...      │   │ leave this page   │    └──────────────────────────┘
@@ -27,7 +27,7 @@ place consistent while simulating what happens to it — water, weather, light, 
 - **Snapshot:** one shot from the photo (~2 min).
 - **Film:** three shots, each starting from the previous shot's last frame (~6 min):
   1. *Now*: the place as photographed, with gentle ambient motion and sound.
-  2. *Shift*: the change happening (storm rolls in, vines grow, rocket rises, crowds fade to 1968).
+  2. *Shift*: the change happening (storm rolls in, rocket rises, balloons rise).
   3. *Arrive*: the new moment, settled.
 
 ## Content
@@ -39,17 +39,20 @@ match the worker's working size.
 
 **Moments** (`src/timeMachine/moments.ts`): id, label, icon, and three prompt templates (`now`, `shift`,
 `arrive`) with a `{place}` slot. Hand-written rather than LLM-generated: deterministic, no API key, easy to tune. The
-instance's prompt enhancer still expands them. Starting set:
+The relay skips the instance's prompt enhancer for them: it added camera moves that left the photo. Starting set:
 
-| Moment | The world-model hook |
+| Moment | What moves through the photo |
 | --- | --- |
-| Opening day, 1968 | period clothing, cars, film grain; *verify UCF history details before using them* |
-| 2125 | architecture and transport change while the place stays recognizable |
-| Hurricane landfall | wind, rain, water on the pond, palm trees bending, the sound of the storm |
-| Rocket launch on the horizon | light, smoke trail, delayed rumble (campus is near the Space Coast) |
-| Nature reclaims, 500 years later | vines, collapsed roofs, wildlife, birdsong instead of crowds |
-| Medieval Knights | banners, torches, stone; leans into the Knights theme without official logos |
-| Snow day in Orlando | the impossible weather event, people reacting |
+| The year 2125 | white drones and a transparent hover pod glide past, blue light lines on the buildings |
+| Homecoming | hundreds of black and gold balloons rise past the camera, gold confetti falls |
+| Hurricane landfall | a tornado funnel in the distance, black clouds, thrashing trees, wind and rain audio |
+| Rocket on the horizon | a distant launch with a flame and billowing plume (campus is near the Space Coast) |
+| Wild Florida | an alligator crawls across the foreground, a heron steps past |
+| Charge of the Knights | a knight in silver armor gallops across on a white horse with a black and gold banner |
+| Snow day in Orlando | snow falls and piles up; the camera tilts down to the white ground |
+
+Whole-scene restyles (1968 film look, medieval stone, 500 years of overgrowth) were tried first and dropped: in a
+3 s image→video clip they barely change the photo or dissolve into a different place. See `moments.ts`.
 
 Keep official UCF marks (logos, Knightro, the Pegasus seal artwork) out of prompts and marketing.
 

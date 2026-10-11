@@ -1,9 +1,9 @@
-import { CloudLightning, History, Leaf, Rocket, Shield, Snowflake, Sparkles } from 'lucide-react';
+import { Bird, CloudLightning, History, PartyPopper, Rocket, Snowflake, Sparkles, Swords } from 'lucide-react';
 import { CampusScene } from './CampusScene';
 import { MOMENTS } from './moments';
 import type { Place } from './places';
 
-const ICONS = [Sparkles, History, CloudLightning, Rocket, Leaf, Shield, Snowflake];
+const ICONS = [Sparkles, PartyPopper, CloudLightning, Rocket, Bird, Swords, Snowflake];
 export function MomentPicker({ selected, onSelect, disabled, kind }: { selected: string; onSelect: (id: string) => void; disabled: boolean; kind: Place['kind'] }) {
   return <section className="journey-section" aria-labelledby="moment-heading">
     <div className="section-caption"><span className="step-number">02</span><h2 id="moment-heading">Choose a moment</h2><History size={15} aria-hidden="true" /></div>

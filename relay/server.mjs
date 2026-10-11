@@ -118,7 +118,10 @@ async function createTimeline(req) {
   const [{ prompt }] = buildShots(moment, view?.description || 'the UCF campus', 'snapshot');
   const placeName = place?.name || 'Your campus photo';
   const timeline = { place: placeName, moment: moment.id, length };
-  const { jobId } = await queueJob({ mode: 'image', prompt, ...withPreset(SNAPSHOT), timeline }, { image });
+  // Moment prompts go in as written: the expander adds camera moves ("the camera pans slowly to the right") that
+  // pull away from the photo, and it turned the rocket into a static tower. Measured side by side, 2026-10-10.
+  const preset = withPreset(SNAPSHOT);
+  const { jobId } = await queueJob({ mode: 'image', prompt, ...preset, bench: { ...preset.bench, enhance: false }, timeline }, { image });
   const wall = await readWallIndex();
   await writeFile(WALL_FILE, JSON.stringify([{ id: jobId, place: placeName, moment: moment.id }, ...wall].slice(0, 200)));
   return { jobId };
