@@ -71,6 +71,13 @@ Node built-ins only, port 8000. `transport-jupyter.mjs` handles the upstream cal
   `<video>` element can seek. Finished MP4s and last frames are cached in `relay/cache/`.
 - `/api/timelines` and `/api/wall` serve the Campus Time Machine (see [api.md](api.md)). Timeline jobs are
   recorded in `relay/wall.json` (gitignored).
+- Remote storage (`relay/storage.mjs`, optional): with `HF_BUCKET`, `HF_S3_KEY_ID`, `HF_S3_SECRET` set, every
+  journey also gets `journeys/<id>.json` in a public Hugging Face Storage Bucket, written `pending` when queued.
+  When it completes, the relay uploads `<id>.mp4`, `<id>-last.png`, and `<id>-before.<ext>` next to it and marks
+  it `completed`; the Wall is then read from the bucket, so it survives the laptop and the instance, and any
+  teammate's relay with the same keys shows the same Wall. Writes are SigV4-signed `PUT`s to HF's S3 gateway
+  (`s3.hf.co`, the instance can't reach HF, so the relay uploads); reads use the public Hub API and `resolve`
+  URLs. On startup the relay backfills `relay/wall.json` entries that the bucket doesn't have yet.
 - `GET /api/health` reports `instance` (`ok` / `login-expired` / `unreachable`) and whether the worker's
   heartbeat is fresh. A job submitted while the heartbeat is stale fails with "GPU worker is offline".
 - Secrets live in `relay/.env.local` (gitignored), never in `VITE_` variables. `RADEON_SESSION` (the dashboard's
