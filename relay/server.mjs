@@ -8,6 +8,7 @@ import { Readable, pipeline } from 'node:stream';
 import { createReadStream, existsSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { HttpError, createJupyterTransport } from './transport-jupyter.mjs';
+import { createBucketStorage } from './storage.mjs';
 import { DURATIONS, RESOLUTIONS, STEPS, dimensions } from '../src/lib/capabilities.ts';
 import { MOMENTS, buildShots } from '../src/timeMachine/moments.ts';
 import { PLACES, placeView } from '../src/timeMachine/places.ts';
@@ -29,9 +30,10 @@ const WALL_FILE = new URL('./wall.json', import.meta.url); // local index of tim
 // Finished clips are copied here once, so replays (the wall, the demo) don't depend on the gateway.
 const CACHE_DIR = new URL('./cache/', import.meta.url);
 
-let instance;
+let instance, storage;
 try {
   instance = createJupyterTransport(process.env);
+  storage = createBucketStorage(process.env);
 } catch (error) {
   console.error(error.message);
   process.exit(1);
@@ -123,18 +125,37 @@ async function createTimeline(req) {
   // Moment prompts go in as written: the expander adds camera moves ("the camera pans slowly to the right") that
   // pull away from the photo, and it turned the rocket into a static tower. Measured side by side, 2026-10-10.
   const request = withPreset(preset);
-  const { jobId } = await queueJob({ mode: 'image', prompt, ...request, bench: { ...request.bench, enhance: false }, timeline }, { image });
+  const { jobId, createdAt } = await queueJob({ mode: 'image', prompt, ...request, bench: { ...request.bench, enhance: false }, timeline }, { image });
   const wall = await readWallIndex();
   await writeFile(WALL_FILE, JSON.stringify([{ id: jobId, place: placeName, moment: moment.id }, ...wall].slice(0, 200)));
+  // The journey is already queued, so a bucket outage only costs it its place on the shared wall.
+  storage?.putJson(recordKey(jobId), { id: jobId, place: placeName, moment: moment.id, quality: quality.id, createdAt, status: 'pending' })
+    .catch(error => console.error('[relay] bucket record', jobId, error.message));
   return { jobId };
 }
 
 const requestCache = new Map(); // jobId -> request.json (immutable once written)
 
-async function getTimeline(jobId) {
-  const job = await getGeneration(jobId);
+async function readRequest(jobId) {
   if (!requestCache.has(jobId)) requestCache.set(jobId, await instance.readRequest(jobId));
-  const image = requestCache.get(jobId)?.image;
+  return requestCache.get(jobId);
+}
+
+async function getTimeline(jobId) {
+  let job;
+  try {
+    job = await getGeneration(jobId);
+  } catch (error) {
+    // The instance may be gone; an archived journey still plays from the bucket.
+    const record = storage && await storage.getJson(recordKey(jobId)).catch(() => null);
+    if (record?.status !== 'completed') throw error;
+    return timelineFromRecord(record);
+  }
+  if (job.status === 'completed') {
+    archiveJourney(jobId, job);
+    if (archived.has(jobId)) return timelineFromRecord(archived.get(jobId));
+  }
+  const image = (await readRequest(jobId))?.image;
   return {
     ...job,
     shots: [{ phase: 'arrive', status: job.status, progress: job.progress, output: job.output, thumbnail: job.finalFrameUrl }],
@@ -150,11 +171,100 @@ let wallCache;
 
 async function getWall() {
   if (wallCache && Date.now() - wallCache.at < 15_000) return wallCache.body;
+  if (storage) {
+    wallCache = { at: Date.now(), body: await getRemoteWall() };
+    return wallCache.body;
+  }
   const entries = (await readWallIndex()).slice(0, 48);
   const jobs = await Promise.all(entries.map(entry => getGeneration(entry.id).catch(() => null)));
   const body = entries.flatMap((entry, i) => jobs[i]?.status === 'completed' ? [{ ...entry, url: jobs[i].output.url, ...(jobs[i].finalFrameUrl && { thumbnail: jobs[i].finalFrameUrl }) }] : []);
   wallCache = { at: Date.now(), body };
   return body;
+}
+
+// Remote storage (relay/storage.mjs): each journey is journeys/<id>.json in the bucket, written as pending when it's
+// queued and completed once its clip, last frame and source photo are uploaded next to it. The bucket is then the
+// wall's source of truth, so the wall and finished clips outlive this laptop and the GPU instance.
+const recordKey = jobId => `journeys/${jobId}.json`;
+const archived = new Map(); // jobId -> completed record
+const archiving = new Map(); // jobId -> in-flight upload
+
+function timelineFromRecord(record) {
+  return {
+    jobId: record.id, status: 'completed', progress: 100, output: record.output,
+    ...(record.thumbnail && { finalFrameUrl: record.thumbnail }),
+    shots: [{ phase: 'arrive', status: 'completed', progress: 100, output: record.output, thumbnail: record.thumbnail }],
+    ...(record.beforeImageUrl && { beforeImageUrl: record.beforeImageUrl }),
+  };
+}
+
+async function readOutput(jobId, file) {
+  if (CACHED_FILES.includes(file) && existsSync(cachedPath(jobId, file))) return readFile(cachedPath(jobId, file));
+  return Buffer.from(await (await instance.openFile(jobId, file)).arrayBuffer());
+}
+
+// Uploads a completed journey's files and marks its record completed. Idempotent; jobs without a record
+// (Free mode) are left alone.
+function archiveJourney(jobId, job) {
+  if (!storage || archived.has(jobId)) return Promise.resolve();
+  if (!archiving.has(jobId)) archiving.set(jobId, (async () => {
+    const record = await storage.getJson(recordKey(jobId));
+    if (!record) return;
+    if (record.status === 'completed') return void archived.set(jobId, record);
+    const upload = async (file, key) => {
+      await storage.put(key, await readOutput(jobId, file), CONTENT_TYPES[file.split('.').pop()]);
+      return storage.url(key);
+    };
+    const url = await upload('out.mp4', `journeys/${jobId}.mp4`);
+    const thumbnail = job.finalFrameUrl && await upload('last.png', `journeys/${jobId}-last.png`);
+    const image = (await readRequest(jobId))?.image;
+    const beforeImageUrl = image && await upload(image, `journeys/${jobId}-before.${image.split('.').pop()}`);
+    const done = { ...record, status: 'completed', completedAt: new Date().toISOString(), output: { ...job.output, url }, url, thumbnail, beforeImageUrl };
+    await storage.putJson(recordKey(jobId), done);
+    archived.set(jobId, done);
+    console.log(`[relay] archived ${jobId} to ${storage.describe()}`);
+  })().catch(error => console.error('[relay] archiving', jobId, error.message)).finally(() => archiving.delete(jobId)));
+  return archiving.get(jobId);
+}
+
+// Pending records are checked against the instance: completed ones show up right away (served by the relay
+// until their upload lands), failed or vanished ones are marked failed so they're skipped from then on.
+async function getRemoteWall() {
+  const files = (await storage.list('journeys')).filter(file => file.path.endsWith('.json'))
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)).slice(0, 96);
+  const records = await Promise.all(files.map(async file => {
+    const id = file.path.slice('journeys/'.length, -'.json'.length);
+    const record = archived.get(id) ?? await storage.getJson(file.path).catch(() => null);
+    if (record?.status === 'completed') archived.set(id, record);
+    if (record?.status !== 'pending') return record;
+    try {
+      const job = await getGeneration(id);
+      if (job.status === 'completed') {
+        archiveJourney(id, job);
+        return { ...record, status: 'completed', url: job.output.url, thumbnail: job.finalFrameUrl };
+      }
+      if (job.status === 'failed') storage.putJson(file.path, { ...record, status: 'failed' }).catch(() => {});
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) storage.putJson(file.path, { ...record, status: 'failed' }).catch(() => {});
+    }
+    return record;
+  }));
+  return records.filter(record => record?.status === 'completed')
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 48)
+    .map(({ id, place, moment, url, thumbnail }) => ({ id, place, moment, url, ...(thumbnail && { thumbnail }) }));
+}
+
+// Journeys made while the relay ran without a bucket (relay/wall.json) get a pending record, so the wall
+// above archives them like any other.
+async function backfillBucket() {
+  const known = new Set((await storage.list('journeys')).map(file => file.path));
+  for (const entry of await readWallIndex()) {
+    if (known.has(recordKey(entry.id))) continue;
+    const request = await readRequest(entry.id).catch(() => null);
+    if (!request) continue;
+    await storage.putJson(recordKey(entry.id), { ...entry, quality: request.timeline?.quality, createdAt: request.createdAt, status: 'pending' });
+    console.log(`[relay] backfilled ${entry.id} to ${storage.describe()}`);
+  }
 }
 
 const statusCache = new Map(); // jobId -> { at, body }
@@ -300,4 +410,7 @@ createServer(async (req, res) => {
     if (!res.headersSent) sendJson(res, status, { error: error.message });
     else res.destroy();
   }
-}).listen(PORT, '127.0.0.1', () => console.log(`[relay] http://127.0.0.1:${PORT}/api -> ${instance.describe()}`));
+}).listen(PORT, '127.0.0.1', () => {
+  console.log(`[relay] http://127.0.0.1:${PORT}/api -> ${instance.describe()}; journeys -> ${storage?.describe() ?? 'relay/wall.json only'}`);
+  storage && backfillBucket().catch(error => console.error('[relay] backfill', error.message));
+});

@@ -61,6 +61,12 @@ Failure: `{ "jobId": "abc-123", "status": "failed", "error": "Worker ran out of 
   `moment` uses the IDs in `src/timeMachine/moments.ts`; `place` is a display name. Completed real jobs appear
   on the Wall automatically; the frontend has no publishing endpoint.
 
+With remote storage configured (`HF_BUCKET`, see `relay/.env.example`), finished journeys live in a public Hugging
+Face Storage Bucket and the Wall is read from it. Archived journeys' `url`, `thumbnail`, `finalFrameUrl`,
+`beforeImageUrl`, and `output.url` are absolute `https://huggingface.co/buckets/<ns>/<bucket>/resolve/journeys/...`
+URLs (302 to HF's CDN, `Range` supported), so the browser plays them without the relay. A journey shows relay
+`/api/outputs/...` URLs until its upload finishes, usually a few seconds after completion.
+
 The relay owns prompt construction and source photos. The browser sends selection IDs, never arbitrary shot
 templates. `src/timeMachine/quality.ts` is shared by the UI and relay. All Snapshots are 3 seconds at 24 FPS:
 

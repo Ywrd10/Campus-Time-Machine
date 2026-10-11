@@ -61,12 +61,12 @@ beforeAll(async () => {
   const upstreamPort = await listen(upstream);
   const reservation = createServer(); const port = await listen(reservation); await close(reservation);
   temp = await mkdtemp(join(tmpdir(), 'knight-relay-test-'));
-  for (const file of ['relay/server.mjs', 'relay/transport-jupyter.mjs', 'public/places/SU_Outside2.jpg', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts', 'src/timeMachine/quality.ts']) {
+  for (const file of ['relay/server.mjs', 'relay/transport-jupyter.mjs', 'relay/storage.mjs', 'public/places/SU_Outside2.jpg', 'src/lib/capabilities.ts', 'src/timeMachine/places.ts', 'src/timeMachine/moments.ts', 'src/timeMachine/quality.ts']) {
     const target = join(temp, file); await mkdir(dirname(target), { recursive: true }); await copyFile(resolve(file), target);
   }
   base = `http://127.0.0.1:${port}/api`;
   relay = spawn(process.execPath, [join(temp, 'relay/server.mjs')], { cwd: temp, windowsHide: true,
-    env: { ...process.env, PORT: String(port), JUPYTER_URL: `http://127.0.0.1:${upstreamPort}`, JUPYTER_COOKIE: 'test=fixture', JUPYTER_XSRF: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    env: { ...process.env, PORT: String(port), JUPYTER_URL: `http://127.0.0.1:${upstreamPort}`, JUPYTER_COOKIE: 'test=fixture', JUPYTER_XSRF: '', HF_BUCKET: '', HF_S3_KEY_ID: '', HF_S3_SECRET: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('Relay fixture did not start')), 10000);
     relay.once('error', error => { clearTimeout(timeout); reject(error); });

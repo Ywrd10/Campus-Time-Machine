@@ -14,6 +14,10 @@ The relay validates this optional `quality` field and forwards the preset to the
 callers default to Standard. The statements below about the original fixed Snapshot and Free mode describe
 previous integrations; current UI behavior is in `docs/frontend.md` and `docs/api.md`.
 
+- **Remote storage** (2026-10-11 ~03:55 UTC): journeys + Wall live in the public HF Storage Bucket
+  `brocw/ucf-time-machine` (`relay/storage.mjs`; keys `HF_BUCKET`/`HF_S3_KEY_ID`/`HF_S3_SECRET` in `relay/.env.local`).
+  Verified: backfill of the 3 `wall.json` journeys, a fresh Quick journey end to end, byte-identical MP4, Range 206.
+  `resolve` URLs 302 to the CDN (use `curl -L`). `relay/wall.pre-moments-rework.json` was not migrated.
 - Instance `rgapi-hackathon-22798-4f66cae3` (third one under that id) is up. **`worker_k6.py` is running and idle**
   on `/workspace/k6lite` (`kandinskylab/Kandinsky-6.0-Lite-distill-5s-Diffusers`, 25 GB; downloaded in 6 min).
   LTX-2.5 is not on this instance.
